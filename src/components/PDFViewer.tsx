@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [startPage, setStartPage] = useState<string>("");
   const [endPage, setEndPage] = useState<string>("");
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
+  const [isSplit, setIsSplit] = useState(false);
 
   useEffect(() => {
     const updateScale = () => {
@@ -50,9 +52,15 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
     const scrollTop = element.scrollTop;
-    const pageHeight = element.scrollHeight / numPages;
+    const pageHeight = element.scrollHeight / (isSplit ? splitPdfPages.length : numPages);
     const newPage = Math.floor(scrollTop / pageHeight) + 1;
-    if (newPage !== currentPage) {
+    
+    if (isSplit) {
+      const splitPageIndex = newPage - 1;
+      if (splitPageIndex >= 0 && splitPageIndex < splitPdfPages.length) {
+        setCurrentPage(splitPdfPages[splitPageIndex]);
+      }
+    } else if (newPage !== currentPage) {
       setCurrentPage(newPage);
     }
   };
@@ -73,15 +81,47 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
     const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
     setSplitPdfPages(pages);
+    setIsSplit(true);
+    setCurrentPage(start);
     toast.success(`PDF split from page ${start} to ${end}`);
   };
 
   const handleDownload = async () => {
     try {
-      // In a real application, you would use a PDF manipulation library
-      // to actually split and download the PDF. For now, we'll just show a toast
+      const { PDFDocument } = await import('pdf-lib');
+      
+      // Load the PDF
+      const existingPdfBytes = await file.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+      
+      // Create a new PDF document
+      const newPdfDoc = await PDFDocument.create();
+      
+      // Copy pages to new document
+      const pagesToCopy = isSplit ? splitPdfPages : Array.from({ length: numPages }, (_, i) => i + 1);
+      
+      for (const pageNum of pagesToCopy) {
+        const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNum - 1]);
+        newPdfDoc.addPage(copiedPage);
+      }
+      
+      // Save the new PDF
+      const newPdfBytes = await newPdfDoc.save();
+      
+      // Create blob and download
+      const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
       toast.success("PDF downloaded successfully");
     } catch (error) {
+      console.error('Error downloading PDF:', error);
       toast.error("Error downloading PDF");
     }
   };
@@ -99,6 +139,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Split PDF</DialogTitle>
+              <DialogDescription>
+                Enter the range of pages you want to split from the PDF.
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="flex items-center gap-4">
@@ -136,7 +179,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           onLoadError={() => toast.error("Error loading PDF")}
           className="flex flex-col items-center"
         >
-          {splitPdfPages.length > 0
+          {isSplit
             ? splitPdfPages.map((pageNum) => (
                 <div key={`page_${pageNum}`} className="mb-8">
                   <Page
@@ -163,7 +206,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       </div>
       {numPages > 0 && (
         <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg text-sm">
-          Page {currentPage} of {numPages}
+          Page {currentPage} of {isSplit ? splitPdfPages.length : numPages}
         </div>
       )}
     </div>
