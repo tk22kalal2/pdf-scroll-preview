@@ -69,7 +69,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     overscan: 2,
   });
 
-  // Update current page based on scroll position
   useEffect(() => {
     const updateCurrentPage = () => {
       if (!containerRef.current) return;
@@ -209,7 +208,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNum - 1]);
         
         if (cropSelection && pageNum === cropSelection.pageNumber) {
-          // Apply cropping to the specific page
           copiedPage.setCropBox(
             cropSelection.x,
             copiedPage.getHeight() - cropSelection.y - cropSelection.height,
