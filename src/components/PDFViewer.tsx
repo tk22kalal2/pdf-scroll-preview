@@ -16,7 +16,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-// Set up PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 interface PDFViewerProps {
@@ -55,6 +54,26 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     estimateSize: () => 842 * scale, // A4 height in pixels
     overscan: 2,
   });
+
+  // Update current page based on scroll position
+  useEffect(() => {
+    const updateCurrentPage = () => {
+      if (!containerRef.current) return;
+      
+      const scrollTop = containerRef.current.scrollTop;
+      const pageHeight = 842 * scale; // A4 height in pixels * scale
+      const currentPageIndex = Math.floor(scrollTop / pageHeight);
+      const newPage = pages[currentPageIndex] || 1;
+      
+      setCurrentPage(newPage);
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('scroll', updateCurrentPage);
+      return () => container.removeEventListener('scroll', updateCurrentPage);
+    }
+  }, [scale, pages]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
