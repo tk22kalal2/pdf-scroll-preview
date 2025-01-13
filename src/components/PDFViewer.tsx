@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { toast } from "sonner";
-import { Split, Download } from "lucide-react";
+import { Split, Download, Crop } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +22,14 @@ interface PDFViewerProps {
   file: File;
 }
 
+interface CropSelection {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  pageNumber: number;
+}
+
 export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -31,7 +39,11 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
   const [isSplit, setIsSplit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropSelection, setCropSelection] = useState<CropSelection | null>(null);
+  const [startCrop, setStartCrop] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const updateScale = () => {
@@ -78,6 +90,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setIsLoading(false);
+    pageRefs.current = new Array(numPages).fill(null);
     toast.success("PDF loaded successfully");
   };
 
@@ -102,35 +115,81 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     toast.success(`PDF split from page ${start} to ${end}`);
   };
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>, pageNumber: number) => {
+    if (!isCropping) return;
+    const pageElement = pageRefs.current[pageNumber - 1];
+    if (!pageElement) return;
+
+    const rect = pageElement.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / scale;
+    const y = (e.clientY - rect.top) / scale;
+    setStartCrop({ x, y });
+    setCropSelection({
+      x,
+      y,
+      width: 0,
+      height: 0,
+      pageNumber
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>, pageNumber: number) => {
+    if (!isCropping || !startCrop || !cropSelection) return;
+    const pageElement = pageRefs.current[pageNumber - 1];
+    if (!pageElement) return;
+
+    const rect = pageElement.getBoundingClientRect();
+    const currentX = (e.clientX - rect.left) / scale;
+    const currentY = (e.clientY - rect.top) / scale;
+
+    setCropSelection({
+      x: Math.min(startCrop.x, currentX),
+      y: Math.min(startCrop.y, currentY),
+      width: Math.abs(currentX - startCrop.x),
+      height: Math.abs(currentY - startCrop.y),
+      pageNumber
+    });
+  };
+
+  const handleMouseUp = () => {
+    if (!isCropping || !cropSelection) return;
+    setStartCrop(null);
+    toast.success("Selection completed! Click Download to save the cropped section.");
+  };
+
   const handleDownload = async () => {
     try {
       const { PDFDocument } = await import('pdf-lib');
       setIsLoading(true);
       
-      // Load the PDF
       const existingPdfBytes = await file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(existingPdfBytes);
-      
-      // Create a new PDF document
       const newPdfDoc = await PDFDocument.create();
       
-      // Copy pages to new document
       const pagesToCopy = isSplit ? splitPdfPages : Array.from({ length: numPages }, (_, i) => i + 1);
       
       for (const pageNum of pagesToCopy) {
         const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNum - 1]);
+        
+        if (cropSelection && pageNum === cropSelection.pageNumber) {
+          // Apply cropping to the specific page
+          copiedPage.setCropBox(
+            cropSelection.x,
+            copiedPage.getHeight() - cropSelection.y - cropSelection.height,
+            cropSelection.width,
+            cropSelection.height
+          );
+        }
+        
         newPdfDoc.addPage(copiedPage);
       }
       
-      // Save the new PDF
       const newPdfBytes = await newPdfDoc.save();
-      
-      // Create blob and download
       const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+      link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}${cropSelection ? '_cropped' : ''}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -186,6 +245,15 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
             </div>
           </DialogContent>
         </Dialog>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setIsCropping(!isCropping)}
+          className={isCropping ? "bg-blue-100" : ""}
+        >
+          <Crop className="mr-2" />
+          {isCropping ? "Cancel Crop" : "Crop"}
+        </Button>
         <Button variant="outline" size="sm" onClick={handleDownload} disabled={isLoading}>
           <Download className="mr-2" />
           Download
@@ -211,10 +279,11 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
             }}
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
-              const pageNumber = pages[virtualItem.index];
+              const pageNumber = isSplit ? splitPdfPages[virtualItem.index] : virtualItem.index + 1;
               return (
                 <div
                   key={virtualItem.key}
+                  ref={(el) => pageRefs.current[pageNumber - 1] = el}
                   style={{
                     position: 'absolute',
                     top: 0,
@@ -224,15 +293,31 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                   className="flex justify-center mb-8"
+                  onMouseDown={(e) => handleMouseDown(e, pageNumber)}
+                  onMouseMove={(e) => handleMouseMove(e, pageNumber)}
+                  onMouseUp={handleMouseUp}
                 >
-                  <Page
-                    pageNumber={pageNumber}
-                    scale={scale}
-                    className="shadow-md"
-                    loading={
-                      <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
-                    }
-                  />
+                  <div className="relative">
+                    <Page
+                      pageNumber={pageNumber}
+                      scale={scale}
+                      className="shadow-md"
+                      loading={
+                        <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
+                      }
+                    />
+                    {cropSelection && cropSelection.pageNumber === pageNumber && (
+                      <div
+                        className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-30 pointer-events-none"
+                        style={{
+                          left: cropSelection.x * scale,
+                          top: cropSelection.y * scale,
+                          width: cropSelection.width * scale,
+                          height: cropSelection.height * scale,
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
               );
             })}
