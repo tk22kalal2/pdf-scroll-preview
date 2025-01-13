@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { toast } from "sonner";
 import { Split, Download } from "lucide-react";
@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -30,6 +31,8 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [endPage, setEndPage] = useState<string>("");
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
   const [isSplit, setIsSplit] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const updateScale = () => {
@@ -44,25 +47,19 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     return () => window.removeEventListener("resize", updateScale);
   }, []);
 
+  const pages = isSplit ? splitPdfPages : Array.from({ length: numPages }, (_, i) => i + 1);
+
+  const virtualizer = useVirtualizer({
+    count: pages.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => 842 * scale, // A4 height in pixels
+    overscan: 2,
+  });
+
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
+    setIsLoading(false);
     toast.success("PDF loaded successfully");
-  };
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const element = e.currentTarget;
-    const scrollTop = element.scrollTop;
-    const pageHeight = element.scrollHeight / (isSplit ? splitPdfPages.length : numPages);
-    const newPage = Math.floor(scrollTop / pageHeight) + 1;
-    
-    if (isSplit) {
-      const splitPageIndex = newPage - 1;
-      if (splitPageIndex >= 0 && splitPageIndex < splitPdfPages.length) {
-        setCurrentPage(splitPdfPages[splitPageIndex]);
-      }
-    } else if (newPage !== currentPage) {
-      setCurrentPage(newPage);
-    }
   };
 
   const handleSplit = () => {
@@ -89,6 +86,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const handleDownload = async () => {
     try {
       const { PDFDocument } = await import('pdf-lib');
+      setIsLoading(true);
       
       // Load the PDF
       const existingPdfBytes = await file.arrayBuffer();
@@ -119,9 +117,11 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
+      setIsLoading(false);
       toast.success("PDF downloaded successfully");
     } catch (error) {
       console.error('Error downloading PDF:', error);
+      setIsLoading(false);
       toast.error("Error downloading PDF");
     }
   };
@@ -131,7 +131,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       <div className="flex gap-2 p-4 border-b">
         <Dialog>
           <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" disabled={isLoading}>
               <Split className="mr-2" />
               Split PDF
             </Button>
@@ -167,41 +167,57 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
             </div>
           </DialogContent>
         </Dialog>
-        <Button variant="outline" size="sm" onClick={handleDownload}>
+        <Button variant="outline" size="sm" onClick={handleDownload} disabled={isLoading}>
           <Download className="mr-2" />
           Download
         </Button>
       </div>
-      <div className="max-h-[85vh] overflow-y-auto px-4" onScroll={handleScroll}>
+      <div 
+        ref={containerRef}
+        className="max-h-[85vh] overflow-y-auto px-4"
+        style={{ height: '85vh' }}
+      >
         <Document
           file={file}
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={() => toast.error("Error loading PDF")}
+          loading={<div className="text-center py-4">Loading PDF...</div>}
           className="flex flex-col items-center"
         >
-          {isSplit
-            ? splitPdfPages.map((pageNum) => (
-                <div key={`page_${pageNum}`} className="mb-8">
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const pageNumber = pages[virtualItem.index];
+              return (
+                <div
+                  key={virtualItem.key}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                  className="flex justify-center mb-8"
+                >
                   <Page
-                    pageNumber={pageNum}
+                    pageNumber={pageNumber}
                     scale={scale}
                     className="shadow-md"
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
+                    loading={
+                      <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
+                    }
                   />
                 </div>
-              ))
-            : Array.from(new Array(numPages), (_, index) => (
-                <div key={`page_${index + 1}`} className="mb-8">
-                  <Page
-                    pageNumber={index + 1}
-                    scale={scale}
-                    className="shadow-md"
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                  />
-                </div>
-              ))}
+              );
+            })}
+          </div>
         </Document>
       </div>
       {numPages > 0 && (
