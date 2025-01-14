@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Document, pdfjs } from "react-pdf";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { PDFEditor } from "./PDFEditor";
 import { PDFToolbar } from "./pdf/PDFToolbar";
 import { PDFPageRenderer } from "./pdf/PDFPageRenderer";
 import "react-pdf/dist/Page/AnnotationLayer.css";
@@ -109,8 +108,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         numPages={numPages}
         onSplit={handleSplit}
         onDownload={handleDownload}
-      />
-      <PDFEditor
         pageRef={pageRefs.current[currentPage - 1]}
         onAnnotationsChange={handleAnnotationsChange}
       />

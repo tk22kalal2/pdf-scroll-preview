@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Split, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PDFEditor } from "@/components/PDFEditor";
 import {
   Dialog,
   DialogContent,
@@ -17,9 +18,18 @@ interface PDFToolbarProps {
   numPages: number;
   onSplit: (start: number, end: number) => void;
   onDownload: () => void;
+  pageRef: HTMLDivElement | null;
+  onAnnotationsChange: (annotations: any[]) => void;
 }
 
-export const PDFToolbar = ({ isLoading, numPages, onSplit, onDownload }: PDFToolbarProps) => {
+export const PDFToolbar = ({ 
+  isLoading, 
+  numPages, 
+  onSplit, 
+  onDownload,
+  pageRef,
+  onAnnotationsChange 
+}: PDFToolbarProps) => {
   const [startPage, setStartPage] = useState("");
   const [endPage, setEndPage] = useState("");
 
@@ -80,6 +90,7 @@ export const PDFToolbar = ({ isLoading, numPages, onSplit, onDownload }: PDFTool
           </div>
         </DialogContent>
       </Dialog>
+      <PDFEditor pageRef={pageRef} onAnnotationsChange={onAnnotationsChange} />
       <Button variant="outline" size="sm" onClick={onDownload} disabled={isLoading}>
         <Download className="mr-2" />
         Download
