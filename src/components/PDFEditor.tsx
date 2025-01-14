@@ -23,15 +23,20 @@ export const PDFEditor = ({ pageRef, onAnnotationsChange }: PDFEditorProps) => {
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
 
+  // Cleanup function to safely remove canvas
+  const cleanupCanvas = useCallback(() => {
+    if (canvas && canvas.parentNode) {
+      canvas.parentNode.removeChild(canvas);
+    }
+  }, [canvas]);
+
   useEffect(() => {
     if (!pageRef) return;
 
-    // Remove any existing canvas
-    const existingCanvas = pageRef.querySelector('canvas');
-    if (existingCanvas) {
-      pageRef.removeChild(existingCanvas);
-    }
+    // Cleanup any existing canvas first
+    cleanupCanvas();
 
+    // Create new canvas
     const canvasElement = document.createElement('canvas');
     const rect = pageRef.getBoundingClientRect();
     canvasElement.width = rect.width;
@@ -41,6 +46,8 @@ export const PDFEditor = ({ pageRef, onAnnotationsChange }: PDFEditorProps) => {
     canvasElement.style.left = '0';
     canvasElement.style.pointerEvents = activeTool ? 'auto' : 'none';
     canvasElement.style.cursor = activeTool ? 'crosshair' : 'default';
+    
+    // Ensure pageRef has relative positioning
     pageRef.style.position = 'relative';
     pageRef.appendChild(canvasElement);
 
@@ -50,12 +57,11 @@ export const PDFEditor = ({ pageRef, onAnnotationsChange }: PDFEditorProps) => {
       setCtx(context);
     }
 
+    // Cleanup function
     return () => {
-      if (pageRef.contains(canvasElement)) {
-        pageRef.removeChild(canvasElement);
-      }
+      cleanupCanvas();
     };
-  }, [pageRef, activeTool]);
+  }, [pageRef, activeTool, cleanupCanvas]);
 
   const startDrawing = useCallback((e: MouseEvent | TouchEvent) => {
     if (!ctx || !activeTool || !canvas) return;
@@ -128,25 +134,27 @@ export const PDFEditor = ({ pageRef, onAnnotationsChange }: PDFEditorProps) => {
   useEffect(() => {
     if (!canvas) return;
 
-    // Add both mouse and touch event listeners
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseleave', stopDrawing);
+    const canvasElement = canvas;
 
-    canvas.addEventListener('touchstart', startDrawing);
-    canvas.addEventListener('touchmove', draw);
-    canvas.addEventListener('touchend', stopDrawing);
+    // Add both mouse and touch event listeners
+    canvasElement.addEventListener('mousedown', startDrawing);
+    canvasElement.addEventListener('mousemove', draw);
+    canvasElement.addEventListener('mouseup', stopDrawing);
+    canvasElement.addEventListener('mouseleave', stopDrawing);
+
+    canvasElement.addEventListener('touchstart', startDrawing);
+    canvasElement.addEventListener('touchmove', draw);
+    canvasElement.addEventListener('touchend', stopDrawing);
 
     return () => {
-      canvas.removeEventListener('mousedown', startDrawing);
-      canvas.removeEventListener('mousemove', draw);
-      canvas.removeEventListener('mouseup', stopDrawing);
-      canvas.removeEventListener('mouseleave', stopDrawing);
+      canvasElement.removeEventListener('mousedown', startDrawing);
+      canvasElement.removeEventListener('mousemove', draw);
+      canvasElement.removeEventListener('mouseup', stopDrawing);
+      canvasElement.removeEventListener('mouseleave', stopDrawing);
 
-      canvas.removeEventListener('touchstart', startDrawing);
-      canvas.removeEventListener('touchmove', draw);
-      canvas.removeEventListener('touchend', stopDrawing);
+      canvasElement.removeEventListener('touchstart', startDrawing);
+      canvasElement.removeEventListener('touchmove', draw);
+      canvasElement.removeEventListener('touchend', stopDrawing);
     };
   }, [canvas, startDrawing, draw, stopDrawing]);
 
