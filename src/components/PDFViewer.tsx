@@ -35,7 +35,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [annotations, setAnnotations] = useState<any[]>([]);
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   useEffect(() => {
     const updateScale = () => {
@@ -233,7 +233,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                 <div
                   key={virtualItem.key}
                   ref={(el) => {
-                    pageRefs.current[pageNumber - 1] = el;
+                    if (el) {
+                      pageRefs.current[pageNumber - 1] = el;
+                    }
                   }}
                   style={{
                     position: 'absolute',
