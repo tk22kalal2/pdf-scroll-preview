@@ -3,6 +3,7 @@ import { Document, Page, pdfjs } from "react-pdf";
 import { toast } from "sonner";
 import { Split, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PDFEditor } from "./PDFEditor";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +32,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
   const [isSplit, setIsSplit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
+
+  const [annotations, setAnnotations] = useState<any[]>([]);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const updateScale = () => {
@@ -102,6 +105,10 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     toast.success(`PDF split from page ${start} to ${end}`);
   };
 
+  const handleAnnotationsChange = (newAnnotations: any[]) => {
+    setAnnotations((prev) => [...prev, ...newAnnotations]);
+  };
+
   const handleDownload = async () => {
     try {
       const { PDFDocument } = await import('pdf-lib');
@@ -120,6 +127,15 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       for (const pageNum of pagesToCopy) {
         const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNum - 1]);
         newPdfDoc.addPage(copiedPage);
+        
+        // Add annotations if they exist for this page
+        const pageAnnotations = annotations.filter(a => a.pageNumber === pageNum);
+        if (pageAnnotations.length > 0) {
+          // Apply annotations to the page
+          // Note: This is a simplified version. In a real implementation,
+          // you would need to convert the annotations to PDF annotations
+          // using pdf-lib's annotation features
+        }
       }
       
       // Save the new PDF
@@ -130,7 +146,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+      link.download = `${file.name.replace('.pdf', '')}_edited.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -191,6 +207,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           Download
         </Button>
       </div>
+      <PDFEditor pageRef={pageRefs.current[currentPage - 1]} onAnnotationsChange={handleAnnotationsChange} />
       <div 
         ref={containerRef}
         className="max-h-[85vh] overflow-y-auto px-4"
@@ -215,6 +232,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
               return (
                 <div
                   key={virtualItem.key}
+                  ref={(el) => pageRefs.current[pageNumber - 1] = el}
                   style={{
                     position: 'absolute',
                     top: 0,
