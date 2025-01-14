@@ -26,6 +26,12 @@ export const PDFEditor = ({ pageRef, onAnnotationsChange }: PDFEditorProps) => {
   useEffect(() => {
     if (!pageRef) return;
 
+    // Remove any existing canvas
+    const existingCanvas = pageRef.querySelector('canvas');
+    if (existingCanvas) {
+      pageRef.removeChild(existingCanvas);
+    }
+
     const canvasElement = document.createElement('canvas');
     const rect = pageRef.getBoundingClientRect();
     canvasElement.width = rect.width;
@@ -33,7 +39,9 @@ export const PDFEditor = ({ pageRef, onAnnotationsChange }: PDFEditorProps) => {
     canvasElement.style.position = 'absolute';
     canvasElement.style.top = '0';
     canvasElement.style.left = '0';
-    canvasElement.style.pointerEvents = 'none';
+    canvasElement.style.pointerEvents = activeTool ? 'auto' : 'none';
+    canvasElement.style.cursor = activeTool ? 'crosshair' : 'default';
+    pageRef.style.position = 'relative';
     pageRef.appendChild(canvasElement);
 
     const context = canvasElement.getContext('2d');
@@ -43,34 +51,60 @@ export const PDFEditor = ({ pageRef, onAnnotationsChange }: PDFEditorProps) => {
     }
 
     return () => {
-      pageRef.removeChild(canvasElement);
+      if (pageRef.contains(canvasElement)) {
+        pageRef.removeChild(canvasElement);
+      }
     };
-  }, [pageRef]);
+  }, [pageRef, activeTool]);
 
-  const startDrawing = useCallback((e: PointerEvent) => {
+  const startDrawing = useCallback((e: MouseEvent | TouchEvent) => {
     if (!ctx || !activeTool || !canvas) return;
 
     setIsDrawing(true);
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    let x, y;
+    
+    if (e instanceof MouseEvent) {
+      x = e.clientX - rect.left;
+      y = e.clientY - rect.top;
+    } else {
+      x = e.touches[0].clientX - rect.left;
+      y = e.touches[0].clientY - rect.top;
+    }
 
     ctx.beginPath();
     ctx.moveTo(x, y);
     setCurrentPath([{ x, y }]);
 
-    ctx.strokeStyle = activeTool === 'highlighter' ? 'rgba(255, 255, 0, 0.5)' : '#000';
-    ctx.lineWidth = activeTool === 'highlighter' ? 20 : 2;
+    if (activeTool === 'highlighter') {
+      ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+      ctx.lineWidth = 20;
+    } else if (activeTool === 'pencil') {
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+    } else if (activeTool === 'eraser') {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 20;
+    }
+
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
   }, [ctx, activeTool, canvas]);
 
-  const draw = useCallback((e: PointerEvent) => {
+  const draw = useCallback((e: MouseEvent | TouchEvent) => {
     if (!isDrawing || !ctx || !canvas) return;
 
+    e.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    let x, y;
+    
+    if (e instanceof MouseEvent) {
+      x = e.clientX - rect.left;
+      y = e.clientY - rect.top;
+    } else {
+      x = e.touches[0].clientX - rect.left;
+      y = e.touches[0].clientY - rect.top;
+    }
 
     ctx.lineTo(x, y);
     ctx.stroke();
@@ -94,16 +128,25 @@ export const PDFEditor = ({ pageRef, onAnnotationsChange }: PDFEditorProps) => {
   useEffect(() => {
     if (!canvas) return;
 
-    canvas.addEventListener('pointerdown', startDrawing);
-    canvas.addEventListener('pointermove', draw);
-    canvas.addEventListener('pointerup', stopDrawing);
-    canvas.addEventListener('pointerout', stopDrawing);
+    // Add both mouse and touch event listeners
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseleave', stopDrawing);
+
+    canvas.addEventListener('touchstart', startDrawing);
+    canvas.addEventListener('touchmove', draw);
+    canvas.addEventListener('touchend', stopDrawing);
 
     return () => {
-      canvas.removeEventListener('pointerdown', startDrawing);
-      canvas.removeEventListener('pointermove', draw);
-      canvas.removeEventListener('pointerup', stopDrawing);
-      canvas.removeEventListener('pointerout', stopDrawing);
+      canvas.removeEventListener('mousedown', startDrawing);
+      canvas.removeEventListener('mousemove', draw);
+      canvas.removeEventListener('mouseup', stopDrawing);
+      canvas.removeEventListener('mouseleave', stopDrawing);
+
+      canvas.removeEventListener('touchstart', startDrawing);
+      canvas.removeEventListener('touchmove', draw);
+      canvas.removeEventListener('touchend', stopDrawing);
     };
   }, [canvas, startDrawing, draw, stopDrawing]);
 
