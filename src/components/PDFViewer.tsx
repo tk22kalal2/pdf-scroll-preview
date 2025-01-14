@@ -55,17 +55,16 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const virtualizer = useVirtualizer({
     count: pages.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => 842 * scale, // A4 height in pixels
+    estimateSize: () => 842 * scale,
     overscan: 2,
   });
 
-  // Update current page based on scroll position
   useEffect(() => {
     const updateCurrentPage = () => {
       if (!containerRef.current) return;
       
       const scrollTop = containerRef.current.scrollTop;
-      const pageHeight = 842 * scale; // A4 height in pixels * scale
+      const pageHeight = 842 * scale;
       const currentPageIndex = Math.floor(scrollTop / pageHeight);
       const newPage = pages[currentPageIndex] || 1;
       
@@ -233,7 +232,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
               return (
                 <div
                   key={virtualItem.key}
-                  ref={(el) => pageRefs.current[pageNumber - 1] = el}
+                  ref={(el) => {
+                    pageRefs.current[pageNumber - 1] = el;
+                  }}
                   style={{
                     position: 'absolute',
                     top: 0,
