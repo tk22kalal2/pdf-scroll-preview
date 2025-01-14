@@ -42,8 +42,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [isCropping, setIsCropping] = useState(false);
   const [cropSelection, setCropSelection] = useState<CropSelection | null>(null);
   const [startCrop, setStartCrop] = useState<{ x: number; y: number } | null>(null);
-  const [croppedPages, setCroppedPages] = useState<{ [key: number]: CropSelection }>({});
-  const [previewCrop, setPreviewCrop] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -69,6 +67,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     overscan: 2,
   });
 
+  // Update current page based on scroll position
   useEffect(() => {
     const updateCurrentPage = () => {
       if (!containerRef.current) return;
@@ -132,7 +131,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       height: 0,
       pageNumber
     });
-    setPreviewCrop(false);
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>, pageNumber: number) => {
@@ -155,42 +153,8 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
   const handleMouseUp = () => {
     if (!isCropping || !cropSelection) return;
-    setCroppedPages(prev => ({
-      ...prev,
-      [cropSelection.pageNumber]: cropSelection
-    }));
     setStartCrop(null);
-    setPreviewCrop(true);
-    toast.success("Selection completed! The page will be updated with the cropped section.");
-  };
-
-  const handleApplyCrop = async (pageNumber: number) => {
-    try {
-      const { PDFDocument } = await import('pdf-lib');
-      const existingPdfBytes = await file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(existingPdfBytes);
-      const pages = pdfDoc.getPages();
-      const cropBox = croppedPages[pageNumber];
-
-      if (cropBox) {
-        const page = pages[pageNumber - 1];
-        page.setCropBox(
-          cropBox.x,
-          page.getHeight() - cropBox.y - cropBox.height,
-          cropBox.width,
-          cropBox.height
-        );
-      }
-
-      const newPdfBytes = await pdfDoc.save();
-      const newFile = new File([newPdfBytes], file.name, { type: 'application/pdf' });
-      // Update the file prop with the new cropped PDF
-      window.location.reload(); // Temporary solution to refresh the viewer
-      toast.success(`Page ${pageNumber} has been cropped successfully`);
-    } catch (error) {
-      console.error('Error applying crop:', error);
-      toast.error("Error applying crop to the page");
-    }
+    toast.success("Selection completed! Click Download to save the cropped section.");
   };
 
   const handleDownload = async () => {
@@ -208,6 +172,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNum - 1]);
         
         if (cropSelection && pageNum === cropSelection.pageNumber) {
+          // Apply cropping to the specific page
           copiedPage.setCropBox(
             cropSelection.x,
             copiedPage.getHeight() - cropSelection.y - cropSelection.height,
@@ -314,7 +279,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
             }}
           >
             {virtualizer.getVirtualItems().map((virtualItem) => {
-              const pageNumber = pages[virtualItem.index];
+              const pageNumber = isSplit ? splitPdfPages[virtualItem.index] : virtualItem.index + 1;
               return (
                 <div
                   key={virtualItem.key}
@@ -327,7 +292,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                     height: `${virtualItem.size}px`,
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
-                  className="flex justify-center mb-8 relative"
+                  className="flex justify-center mb-8"
                   onMouseDown={(e) => handleMouseDown(e, pageNumber)}
                   onMouseMove={(e) => handleMouseMove(e, pageNumber)}
                   onMouseUp={handleMouseUp}
@@ -341,25 +306,16 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                         <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
                       }
                     />
-                    {(cropSelection?.pageNumber === pageNumber || croppedPages[pageNumber]) && (
+                    {cropSelection && cropSelection.pageNumber === pageNumber && (
                       <div
-                        className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-30"
+                        className="absolute border-2 border-blue-500 bg-blue-200 bg-opacity-30 pointer-events-none"
                         style={{
-                          left: ((previewCrop ? croppedPages[pageNumber]?.x : cropSelection?.x) || 0) * scale,
-                          top: ((previewCrop ? croppedPages[pageNumber]?.y : cropSelection?.y) || 0) * scale,
-                          width: ((previewCrop ? croppedPages[pageNumber]?.width : cropSelection?.width) || 0) * scale,
-                          height: ((previewCrop ? croppedPages[pageNumber]?.height : cropSelection?.height) || 0) * scale,
+                          left: cropSelection.x * scale,
+                          top: cropSelection.y * scale,
+                          width: cropSelection.width * scale,
+                          height: cropSelection.height * scale,
                         }}
                       />
-                    )}
-                    {croppedPages[pageNumber] && (
-                      <Button
-                        size="sm"
-                        className="absolute top-2 right-2"
-                        onClick={() => handleApplyCrop(pageNumber)}
-                      >
-                        Apply Crop
-                      </Button>
                     )}
                   </div>
                 </div>
@@ -370,7 +326,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       </div>
       {numPages > 0 && (
         <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg text-sm">
-          Page {currentPage} of {pages.length}
+          Page {currentPage} of {isSplit ? splitPdfPages.length : numPages}
         </div>
       )}
     </div>
