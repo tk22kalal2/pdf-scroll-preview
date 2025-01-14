@@ -1,14 +1,11 @@
 import { Page } from "react-pdf";
 import { forwardRef } from "react";
+import { VirtualItem } from "@tanstack/react-virtual";
 
 interface PDFPageRendererProps {
   pageNumber: number;
   scale: number;
-  virtualItem: {
-    key: string;
-    size: number;
-    start: number;
-  };
+  virtualItem: VirtualItem;
 }
 
 export const PDFPageRenderer = forwardRef<HTMLDivElement, PDFPageRendererProps>(

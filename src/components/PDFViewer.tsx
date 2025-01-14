@@ -24,7 +24,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const pageRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const pageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   useEffect(() => {
     const updateScale = () => {
@@ -139,9 +139,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                 <PDFPageRenderer
                   key={virtualItem.key}
                   ref={(el) => {
-                    if (el) {
-                      pageRefs.current[pageNumber - 1] = el;
-                    }
+                    pageRefs.current[pageNumber - 1] = el;
                   }}
                   pageNumber={pageNumber}
                   scale={scale}
