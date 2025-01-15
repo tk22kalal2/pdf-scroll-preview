@@ -1,4 +1,4 @@
-import { Clock, File } from "lucide-react";
+import { Clock, File as FileIcon } from "lucide-react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { toast } from "sonner";
@@ -28,7 +28,13 @@ export const PDFHistory = ({ onFileSelect }: PDFHistoryProps) => {
       if (!response.ok) throw new Error("File not found");
       
       const blob = await response.blob();
-      const file = new File([blob], historyItem.name, { type: "application/pdf" });
+      // Create a File object correctly using the Blob constructor
+      const file = new Blob([blob], { type: "application/pdf" }) as File;
+      Object.defineProperty(file, 'name', {
+        value: historyItem.name,
+        writable: false
+      });
+      
       onFileSelect(file);
     } catch (error) {
       toast.error("Could not open the file. It may have been moved or deleted.");
@@ -56,7 +62,7 @@ export const PDFHistory = ({ onFileSelect }: PDFHistoryProps) => {
               className="w-full justify-start"
               onClick={() => handleFileOpen(item)}
             >
-              <File className="w-4 h-4 mr-2" />
+              <FileIcon className="w-4 h-4 mr-2" />
               <span className="truncate">{item.name}</span>
             </Button>
           ))}
