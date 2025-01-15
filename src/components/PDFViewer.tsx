@@ -31,6 +31,8 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
   const [isSplit, setIsSplit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [jumpToPage, setJumpToPage] = useState<string>("");
+  const [isJumpDialogOpen, setIsJumpDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,17 +53,16 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const virtualizer = useVirtualizer({
     count: pages.length,
     getScrollElement: () => containerRef.current,
-    estimateSize: () => 842 * scale, // A4 height in pixels
+    estimateSize: () => 842 * scale,
     overscan: 2,
   });
 
-  // Update current page based on scroll position
   useEffect(() => {
     const updateCurrentPage = () => {
       if (!containerRef.current) return;
       
       const scrollTop = containerRef.current.scrollTop;
-      const pageHeight = 842 * scale; // A4 height in pixels * scale
+      const pageHeight = 842 * scale;
       const currentPageIndex = Math.floor(scrollTop / pageHeight);
       const newPage = pages[currentPageIndex] || 1;
       
@@ -102,19 +103,37 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     toast.success(`PDF split from page ${start} to ${end}`);
   };
 
+  const handleJumpToPage = () => {
+    const pageNum = parseInt(jumpToPage);
+    if (isNaN(pageNum) || pageNum < 1 || pageNum > (isSplit ? splitPdfPages.length : numPages)) {
+      toast.error(`Please enter a valid page number between 1 and ${isSplit ? splitPdfPages.length : numPages}`);
+      return;
+    }
+
+    const targetPage = isSplit ? splitPdfPages[pageNum - 1] : pageNum;
+    const pageHeight = 842 * scale;
+    const scrollPosition = (targetPage - 1) * pageHeight;
+    
+    containerRef.current?.scrollTo({
+      top: scrollPosition,
+      behavior: 'smooth'
+    });
+
+    setCurrentPage(targetPage);
+    setIsJumpDialogOpen(false);
+    setJumpToPage("");
+    toast.success(`Jumped to page ${pageNum}`);
+  };
+
   const handleDownload = async () => {
     try {
       const { PDFDocument } = await import('pdf-lib');
       setIsLoading(true);
       
-      // Load the PDF
       const existingPdfBytes = await file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(existingPdfBytes);
-      
-      // Create a new PDF document
       const newPdfDoc = await PDFDocument.create();
       
-      // Copy pages to new document
       const pagesToCopy = isSplit ? splitPdfPages : Array.from({ length: numPages }, (_, i) => i + 1);
       
       for (const pageNum of pagesToCopy) {
@@ -122,10 +141,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         newPdfDoc.addPage(copiedPage);
       }
       
-      // Save the new PDF
       const newPdfBytes = await newPdfDoc.save();
-      
-      // Create blob and download
       const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -240,9 +256,34 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         </Document>
       </div>
       {numPages > 0 && (
-        <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg text-sm">
-          Page {currentPage} of {isSplit ? splitPdfPages.length : numPages}
-        </div>
+        <>
+          <Dialog open={isJumpDialogOpen} onOpenChange={setIsJumpDialogOpen}>
+            <DialogTrigger asChild>
+              <button className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg text-sm hover:bg-gray-700 transition-colors">
+                Page {currentPage} of {isSplit ? splitPdfPages.length : numPages}
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Jump to Page</DialogTitle>
+                <DialogDescription>
+                  Enter the page number you want to jump to.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <Input
+                  type="number"
+                  placeholder="Enter page number"
+                  value={jumpToPage}
+                  onChange={(e) => setJumpToPage(e.target.value)}
+                  min={1}
+                  max={isSplit ? splitPdfPages.length : numPages}
+                />
+                <Button onClick={handleJumpToPage}>Jump</Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
     </div>
   );
