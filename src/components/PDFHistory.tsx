@@ -9,7 +9,7 @@ interface PDFHistoryProps {
 
 interface PDFHistoryItem {
   name: string;
-  path: string;
+  data: string; // Base64 encoded PDF data
   lastOpened: number;
 }
 
@@ -24,12 +24,16 @@ export const PDFHistory = ({ onFileSelect }: PDFHistoryProps) => {
 
   const handleFileOpen = async (historyItem: PDFHistoryItem) => {
     try {
-      const response = await fetch(historyItem.path);
-      if (!response.ok) throw new Error("File not found");
+      // Convert base64 string back to binary data
+      const binaryStr = atob(historyItem.data);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
       
-      const blob = await response.blob();
-      // Create a File object correctly using the Blob constructor
-      const file = new Blob([blob], { type: "application/pdf" }) as File;
+      // Create a blob from the binary data
+      const blob = new Blob([bytes], { type: "application/pdf" });
+      const file = blob as File;
       Object.defineProperty(file, 'name', {
         value: historyItem.name,
         writable: false
@@ -37,7 +41,7 @@ export const PDFHistory = ({ onFileSelect }: PDFHistoryProps) => {
       
       onFileSelect(file);
     } catch (error) {
-      toast.error("Could not open the file. It may have been moved or deleted.");
+      toast.error("Could not open the file. It may have been corrupted.");
     }
   };
 

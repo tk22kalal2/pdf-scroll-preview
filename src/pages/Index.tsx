@@ -6,24 +6,31 @@ import { PDFHistory } from "@/components/PDFHistory";
 const Index = () => {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     setPdfFile(file);
     
     // Save to history
     try {
-      const historyItem = {
-        name: file.name,
-        path: URL.createObjectURL(file),
-        lastOpened: Date.now(),
+      // Convert file to base64
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Data = (reader.result as string).split(',')[1];
+        const historyItem = {
+          name: file.name,
+          data: base64Data,
+          lastOpened: Date.now(),
+        };
+        
+        const history = JSON.parse(localStorage.getItem("pdfHistory") || "[]");
+        const updatedHistory = [
+          historyItem,
+          ...history.filter((item: any) => item.name !== file.name),
+        ].slice(0, 5); // Keep only last 5 PDFs
+        
+        localStorage.setItem("pdfHistory", JSON.stringify(updatedHistory));
       };
       
-      const history = JSON.parse(localStorage.getItem("pdfHistory") || "[]");
-      const updatedHistory = [
-        historyItem,
-        ...history.filter((item: any) => item.name !== file.name),
-      ].slice(0, 5); // Keep only last 5 PDFs
-      
-      localStorage.setItem("pdfHistory", JSON.stringify(updatedHistory));
+      reader.readAsDataURL(file);
     } catch (error) {
       console.error("Failed to save PDF to history:", error);
     }
