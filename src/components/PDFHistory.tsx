@@ -16,8 +16,17 @@ interface PDFHistoryItem {
 export const PDFHistory = ({ onFileSelect }: PDFHistoryProps) => {
   const getHistory = (): PDFHistoryItem[] => {
     try {
-      return JSON.parse(localStorage.getItem("pdfHistory") || "[]");
+      // Try to get from localStorage with error handling
+      const historyData = localStorage.getItem("pdfHistory");
+      if (!historyData) return [];
+      
+      const parsedHistory = JSON.parse(historyData);
+      if (!Array.isArray(parsedHistory)) return [];
+      
+      return parsedHistory;
     } catch {
+      // If there's any error, clear the corrupted data
+      localStorage.removeItem("pdfHistory");
       return [];
     }
   };
@@ -33,15 +42,17 @@ export const PDFHistory = ({ onFileSelect }: PDFHistoryProps) => {
       
       // Create a blob from the binary data
       const blob = new Blob([bytes], { type: "application/pdf" });
-      const file = blob as File;
-      Object.defineProperty(file, 'name', {
-        value: historyItem.name,
-        writable: false
-      });
+      const file = new File([blob], historyItem.name, { type: "application/pdf" });
       
       onFileSelect(file);
     } catch (error) {
-      toast.error("Could not open the file. It may have been corrupted.");
+      console.error("Error opening file:", error);
+      toast.error("Could not open the file. Please try uploading it again.");
+      
+      // Remove corrupted entry from history
+      const history = getHistory();
+      const updatedHistory = history.filter(item => item.name !== historyItem.name);
+      localStorage.setItem("pdfHistory", JSON.stringify(updatedHistory));
     }
   };
 

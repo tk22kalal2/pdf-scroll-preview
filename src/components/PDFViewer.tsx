@@ -143,21 +143,33 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       
       const newPdfBytes = await newPdfDoc.save();
       const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      
+      // Check if running in mobile WebView
+      const isMobileWebView = /wv/.test(navigator.userAgent.toLowerCase());
+      
+      if (isMobileWebView) {
+        // For WebView, create a data URL and open in new window/tab
+        const dataUrl = URL.createObjectURL(blob);
+        window.open(dataUrl, '_blank');
+        toast.success("PDF opened in new tab");
+      } else {
+        // For regular browsers, use download attribute
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast.success("PDF downloaded successfully");
+      }
       
       setIsLoading(false);
-      toast.success("PDF downloaded successfully");
     } catch (error) {
       console.error('Error downloading PDF:', error);
       setIsLoading(false);
-      toast.error("Error downloading PDF");
+      toast.error("Error downloading PDF. Please try again.");
     }
   };
 
