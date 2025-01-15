@@ -144,16 +144,50 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const newPdfBytes = await newPdfDoc.save();
       const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
       
-      // Check if running in mobile WebView
-      const isMobileWebView = /wv/.test(navigator.userAgent.toLowerCase());
+      // Enhanced mobile detection
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isWebView = /wv|WebView/.test(navigator.userAgent.toLowerCase());
       
-      if (isMobileWebView) {
-        // For WebView, create a data URL and open in new window/tab
-        const dataUrl = URL.createObjectURL(blob);
-        window.open(dataUrl, '_blank');
-        toast.success("PDF opened in new tab");
+      if (isMobile || isWebView) {
+        try {
+          // Convert blob to base64
+          const reader = new FileReader();
+          reader.onloadend = function() {
+            const base64data = reader.result as string;
+            
+            // Try to open in new window first
+            const newWindow = window.open('', '_blank');
+            if (newWindow) {
+              newWindow.document.write(`
+                <html>
+                  <head>
+                    <title>PDF Preview</title>
+                  </head>
+                  <body style="margin:0;padding:0;">
+                    <embed width="100%" height="100%" src="${base64data}" type="application/pdf" />
+                  </body>
+                </html>
+              `);
+              toast.success("PDF opened in new tab");
+            } else {
+              // Fallback: create a temporary link and click it
+              const link = document.createElement('a');
+              link.href = base64data;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              link.click();
+            }
+          };
+          reader.readAsDataURL(blob);
+        } catch (mobileError) {
+          console.error('Mobile PDF handling error:', mobileError);
+          // Final fallback: direct blob URL
+          const blobUrl = URL.createObjectURL(blob);
+          window.location.href = blobUrl;
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+        }
       } else {
-        // For regular browsers, use download attribute
+        // Desktop browser handling
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -167,9 +201,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       
       setIsLoading(false);
     } catch (error) {
-      console.error('Error downloading PDF:', error);
+      console.error('Error handling PDF:', error);
       setIsLoading(false);
-      toast.error("Error downloading PDF. Please try again.");
+      toast.error("Error with PDF. Please try again.");
     }
   };
 
