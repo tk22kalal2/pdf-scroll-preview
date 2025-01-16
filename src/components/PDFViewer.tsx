@@ -150,39 +150,49 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       
       if (isMobile || isWebView) {
         try {
-          // Create a download URL
+          // Create a download URL with proper MIME type
           const blobUrl = URL.createObjectURL(blob);
           
-          // Create an invisible iframe for download
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          document.body.appendChild(iframe);
-          
-          // Try direct download first
+          // Create a download link with specific attributes for Android
           const link = document.createElement('a');
           link.href = blobUrl;
           link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
-          link.type = 'application/pdf';
+          link.setAttribute('type', 'application/pdf');
+          link.setAttribute('target', '_blank');
+          
+          // Add link to document temporarily
+          document.body.appendChild(link);
           link.click();
           
           // Cleanup
+          document.body.removeChild(link);
+          
+          // Use setTimeout to ensure the download starts before cleaning up
           setTimeout(() => {
             URL.revokeObjectURL(blobUrl);
-            document.body.removeChild(iframe);
-          }, 1000);
+          }, 2000);
           
           toast.success("Download started");
         } catch (mobileError) {
           console.error('Mobile PDF download error:', mobileError);
           
-          // Fallback: try to trigger download using fetch
+          // Fallback method using Fetch API
           try {
             const response = await fetch(URL.createObjectURL(blob));
             const blobData = await response.blob();
-            const blobUrl = URL.createObjectURL(blobData);
+            const blobUrl = URL.createObjectURL(new Blob([blobData], { type: 'application/pdf' }));
             
-            window.location.href = blobUrl;
-            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+            link.setAttribute('type', 'application/pdf');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            setTimeout(() => {
+              URL.revokeObjectURL(blobUrl);
+            }, 2000);
             
             toast.success("Download started");
           } catch (fetchError) {
