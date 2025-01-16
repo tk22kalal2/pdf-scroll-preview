@@ -1,20 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
+import { Document, pdfjs } from "react-pdf";
 import { toast } from "sonner";
-import { Split, Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
+import { PDFControls } from "./pdf/PDFControls";
+import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
+import { PDFPage } from "./pdf/PDFPage";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
@@ -26,13 +18,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [scale, setScale] = useState(1);
-  const [startPage, setStartPage] = useState<string>("");
-  const [endPage, setEndPage] = useState<string>("");
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
   const [isSplit, setIsSplit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [jumpToPage, setJumpToPage] = useState<string>("");
-  const [isJumpDialogOpen, setIsJumpDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
 
@@ -52,18 +40,15 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
   const pages = isSplit ? splitPdfPages : Array.from({ length: numPages }, (_, i) => i + 1);
 
-  // Enhanced virtualizer with better overscan and memory management
   const virtualizer = useVirtualizer({
     count: pages.length,
     getScrollElement: () => containerRef.current,
     estimateSize: () => 842 * scale,
-    overscan: 1, // Reduced overscan to minimize memory usage
+    overscan: 1,
     onChange: (instance) => {
-      // Clean up pages that are far from the viewport
       const visibleRange = instance.getVirtualItems();
       const visibleIndexes = new Set(visibleRange.map(item => pages[item.index]));
       
-      // Add a buffer of ±2 pages
       for (let i = -2; i <= 2; i++) {
         const firstVisible = visibleRange[0]?.index ?? 0;
         const lastVisible = visibleRange[visibleRange.length - 1]?.index ?? 0;
@@ -82,45 +67,13 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     }
   });
 
-  useEffect(() => {
-    const updateCurrentPage = () => {
-      if (!containerRef.current) return;
-      
-      const scrollTop = containerRef.current.scrollTop;
-      const pageHeight = 842 * scale;
-      const currentPageIndex = Math.floor(scrollTop / pageHeight);
-      const newPage = pages[currentPageIndex] || 1;
-      
-      setCurrentPage(newPage);
-    };
-
-    const container = containerRef.current;
-    if (container) {
-      container.addEventListener('scroll', updateCurrentPage);
-      return () => container.removeEventListener('scroll', updateCurrentPage);
-    }
-  }, [scale, pages]);
-
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setIsLoading(false);
     toast.success("PDF loaded successfully");
   };
 
-  const handleSplit = () => {
-    const start = parseInt(startPage);
-    const end = parseInt(endPage);
-
-    if (isNaN(start) || isNaN(end)) {
-      toast.error("Please enter valid page numbers");
-      return;
-    }
-
-    if (start < 1 || end > numPages || start > end) {
-      toast.error(`Please enter page numbers between 1 and ${numPages}`);
-      return;
-    }
-
+  const handleSplit = (start: number, end: number) => {
     const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
     setSplitPdfPages(pages);
     setIsSplit(true);
@@ -128,13 +81,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     toast.success(`PDF split from page ${start} to ${end}`);
   };
 
-  const handleJumpToPage = () => {
-    const pageNum = parseInt(jumpToPage);
-    if (isNaN(pageNum) || pageNum < 1 || pageNum > (isSplit ? splitPdfPages.length : numPages)) {
-      toast.error(`Please enter a valid page number between 1 and ${isSplit ? splitPdfPages.length : numPages}`);
-      return;
-    }
-
+  const handleJumpToPage = (pageNum: number) => {
     const targetPage = isSplit ? splitPdfPages[pageNum - 1] : pageNum;
     const pageHeight = 842 * scale;
     const scrollPosition = (targetPage - 1) * pageHeight;
@@ -145,9 +92,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     });
 
     setCurrentPage(targetPage);
-    setIsJumpDialogOpen(false);
-    setJumpToPage("");
-    toast.success(`Jumped to page ${pageNum}`);
   };
 
   const handleDownload = async () => {
@@ -169,73 +113,57 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const newPdfBytes = await newPdfDoc.save();
       const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
       
-      // Enhanced mobile detection
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      const isWebView = /wv|WebView/.test(navigator.userAgent.toLowerCase());
-      
-      if (isMobile || isWebView) {
+      // Enhanced Android download handling
+      try {
+        // Create a temporary link and trigger download
+        const tempLink = document.createElement('a');
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Set specific attributes for Android WebView
+        tempLink.href = blobUrl;
+        tempLink.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+        tempLink.type = 'application/pdf';
+        tempLink.target = '_blank';
+        
+        // Add to DOM, click, and remove
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        
+        // Cleanup after a delay to ensure download starts
+        setTimeout(() => {
+          document.body.removeChild(tempLink);
+          URL.revokeObjectURL(blobUrl);
+        }, 100);
+        
+        toast.success("Download started");
+      } catch (error) {
+        console.error('Download error:', error);
+        
+        // Fallback method using Fetch API
         try {
-          // Create a download URL with proper MIME type
-          const blobUrl = URL.createObjectURL(blob);
+          const response = await fetch(URL.createObjectURL(blob));
+          const blobData = await response.blob();
           
-          // Create a download link with specific attributes for Android
+          // Use the download attribute with content-disposition
+          const blobUrl = URL.createObjectURL(new Blob([blobData], { 
+            type: 'application/octet-stream'
+          }));
+          
           const link = document.createElement('a');
           link.href = blobUrl;
           link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
-          link.setAttribute('type', 'application/pdf');
-          link.setAttribute('target', '_blank');
-          
-          // Add link to document temporarily
+          link.setAttribute('type', 'application/octet-stream');
           document.body.appendChild(link);
           link.click();
-          
-          // Cleanup
           document.body.removeChild(link);
           
-          // Use setTimeout to ensure the download starts before cleaning up
-          setTimeout(() => {
-            URL.revokeObjectURL(blobUrl);
-          }, 2000);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
           
           toast.success("Download started");
-        } catch (mobileError) {
-          console.error('Mobile PDF download error:', mobileError);
-          
-          // Fallback method using Fetch API
-          try {
-            const response = await fetch(URL.createObjectURL(blob));
-            const blobData = await response.blob();
-            const blobUrl = URL.createObjectURL(new Blob([blobData], { type: 'application/pdf' }));
-            
-            const link = document.createElement('a');
-            link.href = blobUrl;
-            link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
-            link.setAttribute('type', 'application/pdf');
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            setTimeout(() => {
-              URL.revokeObjectURL(blobUrl);
-            }, 2000);
-            
-            toast.success("Download started");
-          } catch (fetchError) {
-            console.error('Fetch fallback error:', fetchError);
-            toast.error("Download failed. Please try again.");
-          }
+        } catch (fetchError) {
+          console.error('Fetch fallback error:', fetchError);
+          toast.error("Download failed. Please try again.");
         }
-      } else {
-        // Desktop browser handling
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        toast.success("PDF downloaded successfully");
       }
       
       setIsLoading(false);
@@ -248,50 +176,12 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
   return (
     <div className="relative bg-white rounded-lg shadow-lg">
-      <div className="flex gap-2 p-4 border-b">
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm" disabled={isLoading}>
-              <Split className="mr-2" />
-              Split PDF
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Split PDF</DialogTitle>
-              <DialogDescription>
-                Enter the range of pages you want to split from the PDF.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="flex items-center gap-4">
-                <Input
-                  type="number"
-                  placeholder="Start page"
-                  value={startPage}
-                  onChange={(e) => setStartPage(e.target.value)}
-                  min={1}
-                  max={numPages}
-                />
-                <span>to</span>
-                <Input
-                  type="number"
-                  placeholder="End page"
-                  value={endPage}
-                  onChange={(e) => setEndPage(e.target.value)}
-                  min={1}
-                  max={numPages}
-                />
-              </div>
-              <Button onClick={handleSplit}>Split</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-        <Button variant="outline" size="sm" onClick={handleDownload} disabled={isLoading}>
-          <Download className="mr-2" />
-          Download
-        </Button>
-      </div>
+      <PDFControls
+        isLoading={isLoading}
+        numPages={numPages}
+        onSplit={handleSplit}
+        onDownload={handleDownload}
+      />
       <div 
         ref={containerRef}
         className="max-h-[85vh] overflow-y-auto px-4"
@@ -326,23 +216,11 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                   }}
                   className="flex justify-center mb-8"
                 >
-                  {loadedPages.has(pageNumber) ? (
-                    <Page
-                      pageNumber={pageNumber}
-                      scale={scale}
-                      className="shadow-md"
-                      loading={
-                        <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
-                      }
-                      error={
-                        <div className="w-full h-[842px] bg-red-50 flex items-center justify-center text-red-500">
-                          Error loading page {pageNumber}
-                        </div>
-                      }
-                    />
-                  ) : (
-                    <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
-                  )}
+                  <PDFPage
+                    pageNumber={pageNumber}
+                    scale={scale}
+                    isLoaded={loadedPages.has(pageNumber)}
+                  />
                 </div>
               );
             })}
@@ -350,34 +228,11 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         </Document>
       </div>
       {numPages > 0 && (
-        <>
-          <Dialog open={isJumpDialogOpen} onOpenChange={setIsJumpDialogOpen}>
-            <DialogTrigger asChild>
-              <button className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg text-sm hover:bg-gray-700 transition-colors">
-                Page {currentPage} of {isSplit ? splitPdfPages.length : numPages}
-              </button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Jump to Page</DialogTitle>
-                <DialogDescription>
-                  Enter the page number you want to jump to.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <Input
-                  type="number"
-                  placeholder="Enter page number"
-                  value={jumpToPage}
-                  onChange={(e) => setJumpToPage(e.target.value)}
-                  min={1}
-                  max={isSplit ? splitPdfPages.length : numPages}
-                />
-                <Button onClick={handleJumpToPage}>Jump</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </>
+        <PDFPageNavigator
+          currentPage={currentPage}
+          totalPages={isSplit ? splitPdfPages.length : numPages}
+          onJumpToPage={handleJumpToPage}
+        />
       )}
     </div>
   );
