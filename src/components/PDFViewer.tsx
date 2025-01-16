@@ -99,78 +99,114 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const { PDFDocument } = await import('pdf-lib');
       setIsLoading(true);
       
+      // Validate file name length
+      const fileName = file.name;
+      if (fileName.length > 100) {
+        toast.error("File name is too long. Please rename the file.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Check file size
+      const MAX_SIZE = 2000 * 1024 * 1024; // 2GB
+      if (file.size > MAX_SIZE) {
+        toast.error("File is too large to download. Maximum size is 2GB.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Check network connection
+      if (!navigator.onLine) {
+        toast.error("No internet connection. Please check your network.");
+        setIsLoading(false);
+        return;
+      }
+
+      toast.info("Preparing file for download...");
+      
       const existingPdfBytes = await file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(existingPdfBytes);
       const newPdfDoc = await PDFDocument.create();
       
       const pagesToCopy = isSplit ? splitPdfPages : Array.from({ length: numPages }, (_, i) => i + 1);
       
+      // Show progress
+      let progress = 0;
+      const totalPages = pagesToCopy.length;
+      
       for (const pageNum of pagesToCopy) {
         const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNum - 1]);
         newPdfDoc.addPage(copiedPage);
+        
+        // Update progress
+        progress++;
+        if (progress % 10 === 0) { // Update every 10 pages
+          toast.info(`Processing page ${progress}/${totalPages}`);
+        }
       }
       
       const newPdfBytes = await newPdfDoc.save();
       const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
       
-      // Enhanced Android download handling
+      // Try multiple download methods
       try {
-        // Create a temporary link and trigger download
-        const tempLink = document.createElement('a');
-        const blobUrl = URL.createObjectURL(blob);
+        // Method 1: Using download attribute
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `${fileName.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(downloadUrl);
         
-        // Set specific attributes for Android WebView
-        tempLink.href = blobUrl;
-        tempLink.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
-        tempLink.type = 'application/pdf';
-        tempLink.target = '_blank';
+        toast.success("Download started successfully");
+      } catch (downloadError) {
+        console.error('Primary download method failed:', downloadError);
         
-        // Add to DOM, click, and remove
-        document.body.appendChild(tempLink);
-        tempLink.click();
-        
-        // Cleanup after a delay to ensure download starts
-        setTimeout(() => {
-          document.body.removeChild(tempLink);
-          URL.revokeObjectURL(blobUrl);
-        }, 100);
-        
-        toast.success("Download started");
-      } catch (error) {
-        console.error('Download error:', error);
-        
-        // Fallback method using Fetch API
+        // Method 2: Using Blob URL with content-disposition
         try {
-          const response = await fetch(URL.createObjectURL(blob));
-          const blobData = await response.blob();
-          
-          // Use the download attribute with content-disposition
-          const blobUrl = URL.createObjectURL(new Blob([blobData], { 
+          const blobUrl = URL.createObjectURL(new Blob([blob], { 
             type: 'application/octet-stream'
           }));
           
-          const link = document.createElement('a');
-          link.href = blobUrl;
-          link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
-          link.setAttribute('type', 'application/octet-stream');
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
+          const downloadLink = document.createElement('a');
+          downloadLink.href = blobUrl;
+          downloadLink.setAttribute('download', `${fileName.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`);
+          downloadLink.setAttribute('type', 'application/octet-stream');
+          downloadLink.click();
           
           setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
           
-          toast.success("Download started");
-        } catch (fetchError) {
-          console.error('Fetch fallback error:', fetchError);
-          toast.error("Download failed. Please try again.");
+          toast.success("Download started using alternative method");
+        } catch (fallbackError) {
+          console.error('Fallback download method failed:', fallbackError);
+          
+          // Method 3: Using data URL (last resort)
+          try {
+            const reader = new FileReader();
+            reader.onload = function() {
+              const dataUrl = reader.result as string;
+              const downloadLink = document.createElement('a');
+              downloadLink.href = dataUrl;
+              downloadLink.download = `${fileName.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+              downloadLink.click();
+            };
+            reader.readAsDataURL(blob);
+            
+            toast.success("Download started using final fallback method");
+          } catch (finalError) {
+            console.error('All download methods failed:', finalError);
+            toast.error("Download failed. Please try again or check your device storage.");
+          }
         }
       }
       
       setIsLoading(false);
     } catch (error) {
-      console.error('Error handling PDF:', error);
+      console.error('Error processing PDF:', error);
       setIsLoading(false);
-      toast.error("Error with PDF. Please try again.");
+      toast.error("Error processing PDF. Please check your internet connection and try again.");
     }
   };
 
