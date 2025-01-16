@@ -150,41 +150,45 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       
       if (isMobile || isWebView) {
         try {
-          // Convert blob to base64
-          const reader = new FileReader();
-          reader.onloadend = function() {
-            const base64data = reader.result as string;
-            
-            // Try to open in new window first
-            const newWindow = window.open('', '_blank');
-            if (newWindow) {
-              newWindow.document.write(`
-                <html>
-                  <head>
-                    <title>PDF Preview</title>
-                  </head>
-                  <body style="margin:0;padding:0;">
-                    <embed width="100%" height="100%" src="${base64data}" type="application/pdf" />
-                  </body>
-                </html>
-              `);
-              toast.success("PDF opened in new tab");
-            } else {
-              // Fallback: create a temporary link and click it
-              const link = document.createElement('a');
-              link.href = base64data;
-              link.target = '_blank';
-              link.rel = 'noopener noreferrer';
-              link.click();
-            }
-          };
-          reader.readAsDataURL(blob);
-        } catch (mobileError) {
-          console.error('Mobile PDF handling error:', mobileError);
-          // Final fallback: direct blob URL
+          // Create a download URL
           const blobUrl = URL.createObjectURL(blob);
-          window.location.href = blobUrl;
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+          
+          // Create an invisible iframe for download
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+          
+          // Try direct download first
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = `${file.name.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+          link.type = 'application/pdf';
+          link.click();
+          
+          // Cleanup
+          setTimeout(() => {
+            URL.revokeObjectURL(blobUrl);
+            document.body.removeChild(iframe);
+          }, 1000);
+          
+          toast.success("Download started");
+        } catch (mobileError) {
+          console.error('Mobile PDF download error:', mobileError);
+          
+          // Fallback: try to trigger download using fetch
+          try {
+            const response = await fetch(URL.createObjectURL(blob));
+            const blobData = await response.blob();
+            const blobUrl = URL.createObjectURL(blobData);
+            
+            window.location.href = blobUrl;
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+            
+            toast.success("Download started");
+          } catch (fetchError) {
+            console.error('Fetch fallback error:', fetchError);
+            toast.error("Download failed. Please try again.");
+          }
         }
       } else {
         // Desktop browser handling
