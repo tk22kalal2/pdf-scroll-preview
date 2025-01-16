@@ -34,7 +34,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [jumpToPage, setJumpToPage] = useState<string>("");
   const [isJumpDialogOpen, setIsJumpDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
 
+  // Optimize scale based on device
   useEffect(() => {
     const updateScale = () => {
       const width = window.innerWidth;
@@ -50,11 +52,34 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
   const pages = isSplit ? splitPdfPages : Array.from({ length: numPages }, (_, i) => i + 1);
 
+  // Enhanced virtualizer with better overscan and memory management
   const virtualizer = useVirtualizer({
     count: pages.length,
     getScrollElement: () => containerRef.current,
     estimateSize: () => 842 * scale,
-    overscan: 2,
+    overscan: 1, // Reduced overscan to minimize memory usage
+    onChange: (instance) => {
+      // Clean up pages that are far from the viewport
+      const visibleRange = instance.getVirtualItems();
+      const visibleIndexes = new Set(visibleRange.map(item => pages[item.index]));
+      
+      // Add a buffer of ±2 pages
+      for (let i = -2; i <= 2; i++) {
+        const firstVisible = visibleRange[0]?.index ?? 0;
+        const lastVisible = visibleRange[visibleRange.length - 1]?.index ?? 0;
+        const bufferIndex = firstVisible + i;
+        const bufferIndex2 = lastVisible + i;
+        
+        if (bufferIndex >= 0 && bufferIndex < pages.length) {
+          visibleIndexes.add(pages[bufferIndex]);
+        }
+        if (bufferIndex2 >= 0 && bufferIndex2 < pages.length) {
+          visibleIndexes.add(pages[bufferIndex2]);
+        }
+      }
+
+      setLoadedPages(visibleIndexes);
+    }
   });
 
   useEffect(() => {
@@ -301,14 +326,23 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                   }}
                   className="flex justify-center mb-8"
                 >
-                  <Page
-                    pageNumber={pageNumber}
-                    scale={scale}
-                    className="shadow-md"
-                    loading={
-                      <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
-                    }
-                  />
+                  {loadedPages.has(pageNumber) ? (
+                    <Page
+                      pageNumber={pageNumber}
+                      scale={scale}
+                      className="shadow-md"
+                      loading={
+                        <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
+                      }
+                      error={
+                        <div className="w-full h-[842px] bg-red-50 flex items-center justify-center text-red-500">
+                          Error loading page {pageNumber}
+                        </div>
+                      }
+                    />
+                  ) : (
+                    <div className="w-full h-[842px] bg-gray-100 animate-pulse rounded-md" />
+                  )}
                 </div>
               );
             })}
