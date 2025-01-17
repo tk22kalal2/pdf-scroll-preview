@@ -19,35 +19,41 @@ export const PDFRedactionLayer = ({ pageNumber, isRedactMode, onRedactionAdd }: 
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
 
-  const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+  const getCoordinates = (e: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
+    e.preventDefault(); // Prevent scrolling
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    if ('touches' in e) {
-      // Touch event
+    
+    if ('touches' in e && e.touches.length > 0) {
       return {
         x: e.touches[0].clientX - rect.left,
         y: e.touches[0].clientY - rect.top
       };
-    } else {
-      // Mouse event
+    } else if ('clientX' in e) {
       return {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top
       };
     }
+    return null;
   };
 
-  const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleStart = (e: React.PointerEvent) => {
     if (!isRedactMode) return;
     
     const point = getCoordinates(e);
-    setIsDrawing(true);
-    setStartPoint(point);
+    if (point) {
+      setIsDrawing(true);
+      setStartPoint(point);
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    }
   };
 
-  const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleMove = (e: React.PointerEvent) => {
     if (!isRedactMode || !isDrawing || !startPoint) return;
+    e.preventDefault();
     
     const currentPoint = getCoordinates(e);
+    if (!currentPoint) return;
     
     const width = currentPoint.x - startPoint.x;
     const height = currentPoint.y - startPoint.y;
@@ -61,18 +67,12 @@ export const PDFRedactionLayer = ({ pageNumber, isRedactMode, onRedactionAdd }: 
     }
   };
 
-  const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
+  const handleEnd = (e: React.PointerEvent) => {
     if (!isRedactMode || !isDrawing || !startPoint) return;
+    e.preventDefault();
     
-    const endPoint = 'changedTouches' in e 
-      ? {
-          x: e.changedTouches[0].clientX - (e.currentTarget as HTMLDivElement).getBoundingClientRect().left,
-          y: e.changedTouches[0].clientY - (e.currentTarget as HTMLDivElement).getBoundingClientRect().top
-        }
-      : {
-          x: e.clientX - (e.currentTarget as HTMLDivElement).getBoundingClientRect().left,
-          y: e.clientY - (e.currentTarget as HTMLDivElement).getBoundingClientRect().top
-        };
+    const endPoint = getCoordinates(e);
+    if (!endPoint) return;
     
     const width = Math.abs(endPoint.x - startPoint.x);
     const height = Math.abs(endPoint.y - startPoint.y);
@@ -103,18 +103,23 @@ export const PDFRedactionLayer = ({ pageNumber, isRedactMode, onRedactionAdd }: 
   return (
     <div
       className="absolute inset-0"
-      onMouseDown={handleStart}
-      onMouseMove={handleMove}
-      onMouseUp={handleEnd}
-      onTouchStart={handleStart}
-      onTouchMove={handleMove}
-      onTouchEnd={handleEnd}
-      style={{ touchAction: isRedactMode ? 'none' : 'auto' }}
+      onPointerDown={handleStart}
+      onPointerMove={handleMove}
+      onPointerUp={handleEnd}
+      onPointerCancel={handleEnd}
+      style={{ 
+        touchAction: isRedactMode ? 'none' : 'auto',
+        cursor: isRedactMode ? 'crosshair' : 'auto'
+      }}
     >
       {isDrawing && (
         <div
           id="temp-redaction"
-          className="absolute bg-white/50 border-2 border-red-500 pointer-events-none"
+          className="absolute bg-blue-400/30 border-2 border-blue-500 pointer-events-none"
+          style={{ 
+            boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.5)',
+            backdropFilter: 'blur(1px)'
+          }}
         />
       )}
     </div>
