@@ -99,18 +99,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const { PDFDocument } = await import('pdf-lib');
       setIsLoading(true);
       
-      // Validate file name length
-      const fileName = file.name;
-      if (fileName.length > 100) {
-        toast.error("File name is too long. Please rename the file.");
-        setIsLoading(false);
-        return;
-      }
-
-      // Check file size
-      const MAX_SIZE = 2000 * 1024 * 1024; // 2GB
-      if (file.size > MAX_SIZE) {
-        toast.error("File is too large to download. Maximum size is 2GB.");
+      // Validate file
+      if (!file || !file.name) {
+        toast.error("Invalid file data");
         setIsLoading(false);
         return;
       }
@@ -124,89 +115,81 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
       toast.info("Preparing file for download...");
       
-      const existingPdfBytes = await file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(existingPdfBytes);
-      const newPdfDoc = await PDFDocument.create();
+      // Create a safe filename
+      const safeFileName = file.name
+        .replace(/[^a-zA-Z0-9-_\.]/g, '_')
+        .substring(0, 50); // Limit filename length
       
-      const pagesToCopy = isSplit ? splitPdfPages : Array.from({ length: numPages }, (_, i) => i + 1);
-      
-      // Show progress
-      let progress = 0;
-      const totalPages = pagesToCopy.length;
-      
-      for (const pageNum of pagesToCopy) {
-        const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNum - 1]);
-        newPdfDoc.addPage(copiedPage);
-        
-        // Update progress
-        progress++;
-        if (progress % 10 === 0) { // Update every 10 pages
-          toast.info(`Processing page ${progress}/${totalPages}`);
-        }
-      }
-      
-      const newPdfBytes = await newPdfDoc.save();
-      const blob = new Blob([newPdfBytes], { type: 'application/pdf' });
-      
-      // Try multiple download methods
       try {
-        // Method 1: Using download attribute
-        const downloadUrl = URL.createObjectURL(blob);
+        // Method 1: Direct Blob download
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pdfBytes = await pdfDoc.save();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        
+        // Create download URL
+        const url = window.URL.createObjectURL(blob);
+        
+        // Create invisible download link
         const link = document.createElement('a');
-        link.href = downloadUrl;
-        link.download = `${fileName.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
+        link.style.display = 'none';
+        link.href = url;
+        link.download = `${safeFileName}_${Date.now()}.pdf`;
+        
+        // Trigger download
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(downloadUrl);
+        
+        // Cleanup
+        setTimeout(() => {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        }, 100);
         
         toast.success("Download started successfully");
-      } catch (downloadError) {
-        console.error('Primary download method failed:', downloadError);
+      } catch (error) {
+        console.error("Primary download method failed:", error);
         
-        // Method 2: Using Blob URL with content-disposition
+        // Method 2: Fetch API with response blob
         try {
-          const blobUrl = URL.createObjectURL(new Blob([blob], { 
-            type: 'application/octet-stream'
-          }));
+          const response = await fetch(URL.createObjectURL(file));
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
           
-          const downloadLink = document.createElement('a');
-          downloadLink.href = blobUrl;
-          downloadLink.setAttribute('download', `${fileName.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`);
-          downloadLink.setAttribute('type', 'application/octet-stream');
-          downloadLink.click();
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `${safeFileName}_${Date.now()}.pdf`;
+          link.click();
           
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+          setTimeout(() => window.URL.revokeObjectURL(url), 100);
           
-          toast.success("Download started using alternative method");
+          toast.success("Download completed using alternative method");
         } catch (fallbackError) {
-          console.error('Fallback download method failed:', fallbackError);
+          console.error("Fallback download method failed:", fallbackError);
           
-          // Method 3: Using data URL (last resort)
+          // Method 3: Data URL method (most compatible)
           try {
             const reader = new FileReader();
             reader.onload = function() {
-              const dataUrl = reader.result as string;
-              const downloadLink = document.createElement('a');
-              downloadLink.href = dataUrl;
-              downloadLink.download = `${fileName.replace('.pdf', '')}_${isSplit ? 'split' : 'full'}.pdf`;
-              downloadLink.click();
+              const link = document.createElement('a');
+              link.href = reader.result as string;
+              link.download = `${safeFileName}_${Date.now()}.pdf`;
+              link.click();
             };
-            reader.readAsDataURL(blob);
+            reader.readAsDataURL(file);
             
-            toast.success("Download started using final fallback method");
+            toast.success("Download started using compatibility mode");
           } catch (finalError) {
-            console.error('All download methods failed:', finalError);
-            toast.error("Download failed. Please try again or check your device storage.");
+            console.error("All download methods failed:", finalError);
+            toast.error("Download failed. Please try again or check your storage permissions.");
           }
         }
       }
-      
-      setIsLoading(false);
     } catch (error) {
       console.error('Error processing PDF:', error);
+      toast.error("Error processing PDF. Please try again.");
+    } finally {
       setIsLoading(false);
-      toast.error("Error processing PDF. Please check your internet connection and try again.");
     }
   };
 
