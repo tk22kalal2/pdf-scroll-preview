@@ -205,7 +205,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
             y: page.getHeight() - redaction.y - redaction.height,
             width: redaction.width,
             height: redaction.height,
-            color: { r: 1, g: 1, b: 1 },
+            color: { red: 1, green: 1, blue: 1 }, // Using the correct color format
           });
         }
         
