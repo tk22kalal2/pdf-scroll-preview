@@ -7,11 +7,21 @@ import "react-pdf/dist/Page/TextLayer.css";
 import { PDFControls } from "./pdf/PDFControls";
 import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
 import { PDFPage } from "./pdf/PDFPage";
+import { Button } from "./ui/button";
+import { Square } from "lucide-react";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 interface PDFViewerProps {
   file: File;
+}
+
+interface Redaction {
+  pageNumber: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export const PDFViewer = ({ file }: PDFViewerProps) => {
@@ -21,10 +31,13 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
   const [isSplit, setIsSplit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRedactMode, setIsRedactMode] = useState(false);
+  const [redactions, setRedactions] = useState<Redaction[]>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
 
-  // Optimize scale based on device
   useEffect(() => {
     const updateScale = () => {
       const width = window.innerWidth;
@@ -67,6 +80,69 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     }
   });
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isRedactMode) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setIsDrawing(true);
+    setStartPoint({ x, y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isRedactMode || !isDrawing || !startPoint) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+    
+    const width = currentX - startPoint.x;
+    const height = currentY - startPoint.y;
+    
+    const tempRedaction = document.getElementById('temp-redaction');
+    if (tempRedaction) {
+      tempRedaction.style.width = `${Math.abs(width)}px`;
+      tempRedaction.style.height = `${Math.abs(height)}px`;
+      tempRedaction.style.left = `${width > 0 ? startPoint.x : currentX}px`;
+      tempRedaction.style.top = `${height > 0 ? startPoint.y : currentY}px`;
+    }
+  };
+
+  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isRedactMode || !isDrawing || !startPoint) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
+    
+    const width = Math.abs(endX - startPoint.x);
+    const height = Math.abs(endY - startPoint.y);
+    const x = Math.min(startPoint.x, endX);
+    const y = Math.min(startPoint.y, endY);
+    
+    if (width > 10 && height > 10) {
+      setRedactions([...redactions, {
+        pageNumber: currentPage,
+        x,
+        y,
+        width,
+        height
+      }]);
+      toast.success("Redaction area added");
+    }
+    
+    setIsDrawing(false);
+    setStartPoint(null);
+    
+    const tempRedaction = document.getElementById('temp-redaction');
+    if (tempRedaction) {
+      tempRedaction.style.width = '0';
+      tempRedaction.style.height = '0';
+    }
+  };
+
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setIsLoading(false);
@@ -99,14 +175,12 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const { PDFDocument } = await import('pdf-lib');
       setIsLoading(true);
       
-      // Validate file
       if (!file || !file.name) {
         toast.error("Invalid file data");
         setIsLoading(false);
         return;
       }
 
-      // Check network connection
       if (!navigator.onLine) {
         toast.error("No internet connection. Please check your network.");
         setIsLoading(false);
@@ -115,32 +189,38 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
       toast.info("Preparing file for download...");
       
-      // Create a safe filename
       const safeFileName = file.name
         .replace(/[^a-zA-Z0-9-_\.]/g, '_')
-        .substring(0, 50); // Limit filename length
+        .substring(0, 50);
       
       try {
-        // Method 1: Direct Blob download
         const arrayBuffer = await file.arrayBuffer();
         const pdfDoc = await PDFDocument.load(arrayBuffer);
+        
+        // Apply redactions
+        for (const redaction of redactions) {
+          const page = pdfDoc.getPage(redaction.pageNumber - 1);
+          page.drawRectangle({
+            x: redaction.x,
+            y: page.getHeight() - redaction.y - redaction.height,
+            width: redaction.width,
+            height: redaction.height,
+            color: { r: 1, g: 1, b: 1 },
+          });
+        }
+        
         const pdfBytes = await pdfDoc.save();
         const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        
-        // Create download URL
         const url = window.URL.createObjectURL(blob);
         
-        // Create invisible download link
         const link = document.createElement('a');
         link.style.display = 'none';
         link.href = url;
-        link.download = `${safeFileName}_${Date.now()}.pdf`;
+        link.download = `${safeFileName}_redacted_${Date.now()}.pdf`;
         
-        // Trigger download
         document.body.appendChild(link);
         link.click();
         
-        // Cleanup
         setTimeout(() => {
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
@@ -148,42 +228,8 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         
         toast.success("Download started successfully");
       } catch (error) {
-        console.error("Primary download method failed:", error);
-        
-        // Method 2: Fetch API with response blob
-        try {
-          const response = await fetch(URL.createObjectURL(file));
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `${safeFileName}_${Date.now()}.pdf`;
-          link.click();
-          
-          setTimeout(() => window.URL.revokeObjectURL(url), 100);
-          
-          toast.success("Download completed using alternative method");
-        } catch (fallbackError) {
-          console.error("Fallback download method failed:", fallbackError);
-          
-          // Method 3: Data URL method (most compatible)
-          try {
-            const reader = new FileReader();
-            reader.onload = function() {
-              const link = document.createElement('a');
-              link.href = reader.result as string;
-              link.download = `${safeFileName}_${Date.now()}.pdf`;
-              link.click();
-            };
-            reader.readAsDataURL(file);
-            
-            toast.success("Download started using compatibility mode");
-          } catch (finalError) {
-            console.error("All download methods failed:", finalError);
-            toast.error("Download failed. Please try again or check your storage permissions.");
-          }
-        }
+        console.error("Download failed:", error);
+        toast.error("Download failed. Please try again.");
       }
     } catch (error) {
       console.error('Error processing PDF:', error);
@@ -195,17 +241,38 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
   return (
     <div className="relative bg-white rounded-lg shadow-lg">
-      <PDFControls
-        isLoading={isLoading}
-        numPages={numPages}
-        onSplit={handleSplit}
-        onDownload={handleDownload}
-      />
+      <div className="flex items-center justify-between p-4 border-b">
+        <PDFControls
+          isLoading={isLoading}
+          numPages={numPages}
+          onSplit={handleSplit}
+          onDownload={handleDownload}
+        />
+        <Button
+          variant={isRedactMode ? "destructive" : "outline"}
+          onClick={() => {
+            setIsRedactMode(!isRedactMode);
+            toast.info(isRedactMode ? "Redact mode disabled" : "Redact mode enabled. Click and drag to cover areas.");
+          }}
+          className="ml-4"
+        >
+          <Square className="mr-2" />
+          {isRedactMode ? "Exit Redact" : "Redact"}
+        </Button>
+      </div>
+      
       <div 
         ref={containerRef}
-        className="max-h-[85vh] overflow-y-auto px-4"
+        className="max-h-[85vh] overflow-y-auto px-4 relative"
         style={{ height: '85vh' }}
       >
+        {isRedactMode && isDrawing && (
+          <div
+            id="temp-redaction"
+            className="absolute bg-white border-2 border-red-500 pointer-events-none"
+            style={{ position: 'absolute', zIndex: 1000 }}
+          />
+        )}
         <Document
           file={file}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -233,13 +300,31 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                     height: `${virtualItem.size}px`,
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
-                  className="flex justify-center mb-8"
+                  className="flex justify-center mb-8 relative"
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
                 >
                   <PDFPage
                     pageNumber={pageNumber}
                     scale={scale}
                     isLoaded={loadedPages.has(pageNumber)}
                   />
+                  {redactions
+                    .filter(r => r.pageNumber === pageNumber)
+                    .map((redaction, index) => (
+                      <div
+                        key={index}
+                        className="absolute bg-white border border-gray-200"
+                        style={{
+                          left: `${redaction.x}px`,
+                          top: `${redaction.y}px`,
+                          width: `${redaction.width}px`,
+                          height: `${redaction.height}px`,
+                          pointerEvents: 'none'
+                        }}
+                      />
+                    ))}
                 </div>
               );
             })}
