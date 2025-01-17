@@ -52,6 +52,13 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const visibleRange = instance.getVirtualItems();
       const visibleIndexes = new Set(visibleRange.map(item => pages[item.index]));
       
+      // Update current page based on the first visible item
+      if (visibleRange.length > 0) {
+        const firstVisibleIndex = visibleRange[0].index;
+        const currentPageNumber = pages[firstVisibleIndex];
+        setCurrentPage(currentPageNumber);
+      }
+      
       for (let i = -2; i <= 2; i++) {
         const firstVisible = visibleRange[0]?.index ?? 0;
         const lastVisible = visibleRange[visibleRange.length - 1]?.index ?? 0;
