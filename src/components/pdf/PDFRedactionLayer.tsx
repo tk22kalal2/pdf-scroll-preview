@@ -19,50 +19,65 @@ export const PDFRedactionLayer = ({ pageNumber, isRedactMode, onRedactionAdd }: 
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
 
+  const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    if ('touches' in e) {
+      // Touch event
+      return {
+        x: e.touches[0].clientX - rect.left,
+        y: e.touches[0].clientY - rect.top
+      };
+    } else {
+      // Mouse event
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    }
+  };
+
   const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isRedactMode) return;
     
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const point = e instanceof MouseEvent ? e : e.touches[0];
-    const x = point.clientX - rect.left;
-    const y = point.clientY - rect.top;
-    
+    const point = getCoordinates(e);
     setIsDrawing(true);
-    setStartPoint({ x, y });
+    setStartPoint(point);
   };
 
   const handleMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isRedactMode || !isDrawing || !startPoint) return;
     
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const point = e instanceof MouseEvent ? e : e.touches[0];
-    const currentX = point.clientX - rect.left;
-    const currentY = point.clientY - rect.top;
+    const currentPoint = getCoordinates(e);
     
-    const width = currentX - startPoint.x;
-    const height = currentY - startPoint.y;
+    const width = currentPoint.x - startPoint.x;
+    const height = currentPoint.y - startPoint.y;
     
     const tempRedaction = document.getElementById('temp-redaction');
     if (tempRedaction) {
       tempRedaction.style.width = `${Math.abs(width)}px`;
       tempRedaction.style.height = `${Math.abs(height)}px`;
-      tempRedaction.style.left = `${width > 0 ? startPoint.x : currentX}px`;
-      tempRedaction.style.top = `${height > 0 ? startPoint.y : currentY}px`;
+      tempRedaction.style.left = `${width > 0 ? startPoint.x : currentPoint.x}px`;
+      tempRedaction.style.top = `${height > 0 ? startPoint.y : currentPoint.y}px`;
     }
   };
 
   const handleEnd = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isRedactMode || !isDrawing || !startPoint) return;
     
-    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-    const point = e instanceof MouseEvent ? e : (e as React.TouchEvent).changedTouches[0];
-    const endX = point.clientX - rect.left;
-    const endY = point.clientY - rect.top;
+    const endPoint = 'changedTouches' in e 
+      ? {
+          x: e.changedTouches[0].clientX - (e.currentTarget as HTMLDivElement).getBoundingClientRect().left,
+          y: e.changedTouches[0].clientY - (e.currentTarget as HTMLDivElement).getBoundingClientRect().top
+        }
+      : {
+          x: e.clientX - (e.currentTarget as HTMLDivElement).getBoundingClientRect().left,
+          y: e.clientY - (e.currentTarget as HTMLDivElement).getBoundingClientRect().top
+        };
     
-    const width = Math.abs(endX - startPoint.x);
-    const height = Math.abs(endY - startPoint.y);
-    const x = Math.min(startPoint.x, endX);
-    const y = Math.min(startPoint.y, endY);
+    const width = Math.abs(endPoint.x - startPoint.x);
+    const height = Math.abs(endPoint.y - startPoint.y);
+    const x = Math.min(startPoint.x, endPoint.x);
+    const y = Math.min(startPoint.y, endPoint.y);
     
     if (width > 10 && height > 10) {
       onRedactionAdd({
