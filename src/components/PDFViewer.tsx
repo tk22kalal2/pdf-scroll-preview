@@ -7,21 +7,13 @@ import "react-pdf/dist/Page/TextLayer.css";
 import { PDFControls } from "./pdf/PDFControls";
 import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
 import { PDFPage } from "./pdf/PDFPage";
-import { Button } from "./ui/button";
-import { Square } from "lucide-react";
+import { PDFRedactionManager, Redaction } from "./pdf/PDFRedactionManager";
+import { PDFRedactionLayer } from "./pdf/PDFRedactionLayer";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 interface PDFViewerProps {
   file: File;
-}
-
-interface Redaction {
-  pageNumber: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
 }
 
 export const PDFViewer = ({ file }: PDFViewerProps) => {
@@ -33,8 +25,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRedactMode, setIsRedactMode] = useState(false);
   const [redactions, setRedactions] = useState<Redaction[]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
 
@@ -79,96 +69,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       setLoadedPages(visibleIndexes);
     }
   });
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isRedactMode) return;
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    setIsDrawing(true);
-    setStartPoint({ x, y });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isRedactMode || !isDrawing || !startPoint) return;
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const currentX = e.clientX - rect.left;
-    const currentY = e.clientY - rect.top;
-    
-    const width = currentX - startPoint.x;
-    const height = currentY - startPoint.y;
-    
-    const tempRedaction = document.getElementById('temp-redaction');
-    if (tempRedaction) {
-      tempRedaction.style.width = `${Math.abs(width)}px`;
-      tempRedaction.style.height = `${Math.abs(height)}px`;
-      tempRedaction.style.left = `${width > 0 ? startPoint.x : currentX}px`;
-      tempRedaction.style.top = `${height > 0 ? startPoint.y : currentY}px`;
-    }
-  };
-
-  const handleMouseUp = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isRedactMode || !isDrawing || !startPoint) return;
-    
-    const rect = e.currentTarget.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
-    
-    const width = Math.abs(endX - startPoint.x);
-    const height = Math.abs(endY - startPoint.y);
-    const x = Math.min(startPoint.x, endX);
-    const y = Math.min(startPoint.y, endY);
-    
-    if (width > 10 && height > 10) {
-      setRedactions([...redactions, {
-        pageNumber: currentPage,
-        x,
-        y,
-        width,
-        height
-      }]);
-      toast.success("Redaction area added");
-    }
-    
-    setIsDrawing(false);
-    setStartPoint(null);
-    
-    const tempRedaction = document.getElementById('temp-redaction');
-    if (tempRedaction) {
-      tempRedaction.style.width = '0';
-      tempRedaction.style.height = '0';
-    }
-  };
-
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
-    setIsLoading(false);
-    toast.success("PDF loaded successfully");
-  };
-
-  const handleSplit = (start: number, end: number) => {
-    const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
-    setSplitPdfPages(pages);
-    setIsSplit(true);
-    setCurrentPage(start);
-    toast.success(`PDF split from page ${start} to ${end}`);
-  };
-
-  const handleJumpToPage = (pageNum: number) => {
-    const targetPage = isSplit ? splitPdfPages[pageNum - 1] : pageNum;
-    const pageHeight = 842 * scale;
-    const scrollPosition = (targetPage - 1) * pageHeight;
-    
-    containerRef.current?.scrollTo({
-      top: scrollPosition,
-      behavior: 'smooth'
-    });
-
-    setCurrentPage(targetPage);
-  };
 
   const handleDownload = async () => {
     try {
@@ -239,6 +139,33 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     }
   };
 
+  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+    setNumPages(numPages);
+    setIsLoading(false);
+    toast.success("PDF loaded successfully");
+  };
+
+  const handleSplit = (start: number, end: number) => {
+    const pages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
+    setSplitPdfPages(pages);
+    setIsSplit(true);
+    setCurrentPage(start);
+    toast.success(`PDF split from page ${start} to ${end}`);
+  };
+
+  const handleJumpToPage = (pageNum: number) => {
+    const targetPage = isSplit ? splitPdfPages[pageNum - 1] : pageNum;
+    const pageHeight = 842 * scale;
+    const scrollPosition = (targetPage - 1) * pageHeight;
+    
+    containerRef.current?.scrollTo({
+      top: scrollPosition,
+      behavior: 'smooth'
+    });
+
+    setCurrentPage(targetPage);
+  };
+
   return (
     <div className="relative bg-white rounded-lg shadow-lg">
       <div className="flex items-center justify-between p-4 border-b">
@@ -248,17 +175,11 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           onSplit={handleSplit}
           onDownload={handleDownload}
         />
-        <Button
-          variant={isRedactMode ? "destructive" : "outline"}
-          onClick={() => {
-            setIsRedactMode(!isRedactMode);
-            toast.info(isRedactMode ? "Redact mode disabled" : "Redact mode enabled. Click and drag to cover areas.");
-          }}
-          className="ml-4"
-        >
-          <Square className="mr-2" />
-          {isRedactMode ? "Exit Redact" : "Redact"}
-        </Button>
+        <PDFRedactionManager
+          isRedactMode={isRedactMode}
+          onRedactModeChange={setIsRedactMode}
+          redactions={redactions}
+        />
       </div>
       
       <div 
@@ -266,13 +187,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         className="max-h-[85vh] overflow-y-auto px-4 relative"
         style={{ height: '85vh' }}
       >
-        {isRedactMode && isDrawing && (
-          <div
-            id="temp-redaction"
-            className="absolute bg-white border-2 border-red-500 pointer-events-none"
-            style={{ position: 'absolute', zIndex: 1000 }}
-          />
-        )}
         <Document
           file={file}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -301,14 +215,16 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                   className="flex justify-center mb-8 relative"
-                  onMouseDown={handleMouseDown}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
                 >
                   <PDFPage
                     pageNumber={pageNumber}
                     scale={scale}
                     isLoaded={loadedPages.has(pageNumber)}
+                  />
+                  <PDFRedactionLayer
+                    pageNumber={pageNumber}
+                    isRedactMode={isRedactMode}
+                    onRedactionAdd={(redaction) => setRedactions([...redactions, redaction])}
                   />
                   {redactions
                     .filter(r => r.pageNumber === pageNumber)
