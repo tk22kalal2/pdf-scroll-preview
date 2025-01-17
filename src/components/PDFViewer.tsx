@@ -172,7 +172,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
   const handleDownload = async () => {
     try {
-      const { PDFDocument } = await import('pdf-lib');
+      const { PDFDocument, rgb } = await import('pdf-lib');
       setIsLoading(true);
       
       if (!file || !file.name) {
@@ -205,7 +205,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
             y: page.getHeight() - redaction.y - redaction.height,
             width: redaction.width,
             height: redaction.height,
-            color: { red: 1, green: 1, blue: 1 }, // Using the correct color format
+            color: rgb(1, 1, 1), // Using the correct RGB helper function
           });
         }
         
