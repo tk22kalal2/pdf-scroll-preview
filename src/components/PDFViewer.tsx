@@ -131,7 +131,16 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
   const handleAddOverlay = () => {
     setShowOverlay(true);
-    setOverlays(prev => [...prev, { top: 100, left: 100, width: 200, height: 200 }]);
+    const containerRect = containerRef.current?.getBoundingClientRect();
+    if (containerRect) {
+      const newOverlay = {
+        top: (containerRect.height / 2) - 100,
+        left: (containerRect.width / 2) - 100,
+        width: 200,
+        height: 200
+      };
+      setOverlays(prev => [...prev, newOverlay]);
+    }
   };
 
   const handleOverlayChange = (index: number, position: { top: number; left: number; width: number; height: number }) => {
@@ -207,7 +216,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                     scale={scale}
                     isLoaded={loadedPages.has(pageNumber)}
                   />
-                  {showOverlay && overlays.map((overlay, index) => (
+                  {(showOverlay || overlays.length > 0) && overlays.map((overlay, index) => (
                     <Overlay
                       key={index}
                       {...overlay}

@@ -12,35 +12,52 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
   const overlayRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
   const [initialPosition, setInitialPosition] = useState({ top, left, width, height });
   const [currentPosition, setCurrentPosition] = useState({ top, left, width, height });
   const [resizeHandle, setResizeHandle] = useState<string | null>(null);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const getClientCoords = (event: MouseEvent | TouchEvent) => {
+    if ('touches' in event) {
+      return {
+        clientX: event.touches[0].clientX,
+        clientY: event.touches[0].clientY
+      };
+    }
+    return {
+      clientX: event.clientX,
+      clientY: event.clientY
+    };
+  };
+
+  const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
     if (e.target === overlayRef.current) {
       setIsDragging(true);
-      setDragStart({ 
-        x: e.clientX - currentPosition.left, 
-        y: e.clientY - currentPosition.top 
+      const coords = getClientCoords(e.nativeEvent);
+      setStartPoint({ 
+        x: coords.clientX - currentPosition.left, 
+        y: coords.clientY - currentPosition.top 
       });
       setInitialPosition(currentPosition);
     }
   };
 
-  const handleResizeMouseDown = (e: React.MouseEvent, handle: string) => {
+  const handleResizeStart = (e: React.MouseEvent | React.TouchEvent, handle: string) => {
     e.stopPropagation();
     setIsResizing(true);
     setResizeHandle(handle);
-    setDragStart({ x: e.clientX, y: e.clientY });
+    const coords = getClientCoords(e.nativeEvent);
+    setStartPoint({ x: coords.clientX, y: coords.clientY });
     setInitialPosition(currentPosition);
   };
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      const coords = getClientCoords(e);
+
       if (isDragging) {
-        const newLeft = Math.max(0, e.clientX - dragStart.x);
-        const newTop = Math.max(0, e.clientY - dragStart.y);
+        const newLeft = Math.max(0, coords.clientX - startPoint.x);
+        const newTop = Math.max(0, coords.clientY - startPoint.y);
         
         const newPosition = {
           ...currentPosition,
@@ -52,8 +69,8 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
         onChange(newPosition);
       } else if (isResizing && resizeHandle) {
         e.preventDefault();
-        const deltaX = e.clientX - dragStart.x;
-        const deltaY = e.clientY - dragStart.y;
+        const deltaX = coords.clientX - startPoint.x;
+        const deltaY = coords.clientY - startPoint.y;
         let newPosition = { ...initialPosition };
 
         switch (resizeHandle) {
@@ -96,50 +113,60 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
       }
     };
 
-    const handleMouseUp = () => {
+    const handleEnd = () => {
       setIsDragging(false);
       setIsResizing(false);
       setResizeHandle(null);
     };
 
     if (isDragging || isResizing) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('mousemove', handleMove);
+      document.addEventListener('mouseup', handleEnd);
+      document.addEventListener('touchmove', handleMove);
+      document.addEventListener('touchend', handleEnd);
     }
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleEnd);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleEnd);
     };
-  }, [isDragging, isResizing, dragStart, resizeHandle, initialPosition]);
+  }, [isDragging, isResizing, startPoint, initialPosition, resizeHandle]);
 
   return (
     <div
       ref={overlayRef}
-      className="absolute bg-white border-2 border-blue-500 cursor-move opacity-80"
+      className="absolute bg-white border-2 border-blue-500 cursor-move opacity-90 touch-none"
       style={{
         top: currentPosition.top,
         left: currentPosition.left,
         width: currentPosition.width,
         height: currentPosition.height,
+        zIndex: 1000,
       }}
-      onMouseDown={handleMouseDown}
+      onMouseDown={handleStart}
+      onTouchStart={handleStart}
     >
       <div
-        className="absolute w-3 h-3 bg-blue-500 cursor-nw-resize -left-1.5 -top-1.5"
-        onMouseDown={(e) => handleResizeMouseDown(e, 'top-left')}
+        className="absolute w-6 h-6 bg-blue-500 cursor-nw-resize -left-3 -top-3 rounded-full"
+        onMouseDown={(e) => handleResizeStart(e, 'top-left')}
+        onTouchStart={(e) => handleResizeStart(e, 'top-left')}
       />
       <div
-        className="absolute w-3 h-3 bg-blue-500 cursor-ne-resize -right-1.5 -top-1.5"
-        onMouseDown={(e) => handleResizeMouseDown(e, 'top-right')}
+        className="absolute w-6 h-6 bg-blue-500 cursor-ne-resize -right-3 -top-3 rounded-full"
+        onMouseDown={(e) => handleResizeStart(e, 'top-right')}
+        onTouchStart={(e) => handleResizeStart(e, 'top-right')}
       />
       <div
-        className="absolute w-3 h-3 bg-blue-500 cursor-sw-resize -left-1.5 -bottom-1.5"
-        onMouseDown={(e) => handleResizeMouseDown(e, 'bottom-left')}
+        className="absolute w-6 h-6 bg-blue-500 cursor-sw-resize -left-3 -bottom-3 rounded-full"
+        onMouseDown={(e) => handleResizeStart(e, 'bottom-left')}
+        onTouchStart={(e) => handleResizeStart(e, 'bottom-left')}
       />
       <div
-        className="absolute w-3 h-3 bg-blue-500 cursor-se-resize -right-1.5 -bottom-1.5"
-        onMouseDown={(e) => handleResizeMouseDown(e, 'bottom-right')}
+        className="absolute w-6 h-6 bg-blue-500 cursor-se-resize -right-3 -bottom-3 rounded-full"
+        onMouseDown={(e) => handleResizeStart(e, 'bottom-right')}
+        onTouchStart={(e) => handleResizeStart(e, 'bottom-right')}
       />
     </div>
   );
