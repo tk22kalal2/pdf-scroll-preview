@@ -7,6 +7,8 @@ import "react-pdf/dist/Page/TextLayer.css";
 import { PDFControls } from "./pdf/PDFControls";
 import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
 import { PDFPage } from "./pdf/PDFPage";
+import { Button } from "./ui/button";
+import { Overlay } from "./pdf/Overlay";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
@@ -23,6 +25,8 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [overlays, setOverlays] = useState<Array<{ top: number; left: number; width: number; height: number }>>([]);
 
   useEffect(() => {
     const updateScale = () => {
@@ -125,6 +129,22 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     setCurrentPage(targetPage);
   };
 
+  const handleAddOverlay = () => {
+    setShowOverlay(true);
+    setOverlays([...overlays, { top: 100, left: 100, width: 200, height: 200 }]);
+  };
+
+  const handleOverlayChange = (index: number, position: { top: number; left: number; width: number; height: number }) => {
+    const newOverlays = [...overlays];
+    newOverlays[index] = position;
+    setOverlays(newOverlays);
+  };
+
+  const handleApplyChanges = () => {
+    setShowOverlay(false);
+    toast.success("Overlay positions saved");
+  };
+
   return (
     <div className="relative bg-white rounded-lg shadow-lg">
       <div className="flex items-center justify-between p-4 border-b">
@@ -134,6 +154,16 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           onSplit={handleSplit}
           onDownload={handleDownload}
         />
+        <div className="flex gap-2">
+          <Button onClick={handleAddOverlay} variant="outline">
+            Add Overlay
+          </Button>
+          {showOverlay && (
+            <Button onClick={handleApplyChanges} variant="default">
+              Apply Changes
+            </Button>
+          )}
+        </div>
       </div>
       
       <div 
@@ -175,6 +205,13 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                     scale={scale}
                     isLoaded={loadedPages.has(pageNumber)}
                   />
+                  {showOverlay && overlays.map((overlay, index) => (
+                    <Overlay
+                      key={index}
+                      {...overlay}
+                      onChange={(position) => handleOverlayChange(index, position)}
+                    />
+                  ))}
                 </div>
               );
             })}
