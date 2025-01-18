@@ -7,8 +7,6 @@ import "react-pdf/dist/Page/TextLayer.css";
 import { PDFControls } from "./pdf/PDFControls";
 import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
 import { PDFPage } from "./pdf/PDFPage";
-import { PDFRedactionManager, Redaction } from "./pdf/PDFRedactionManager";
-import { PDFRedactionLayer } from "./pdf/PDFRedactionLayer";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
@@ -23,8 +21,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [splitPdfPages, setSplitPdfPages] = useState<number[]>([]);
   const [isSplit, setIsSplit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRedactMode, setIsRedactMode] = useState(false);
-  const [redactions, setRedactions] = useState<Redaction[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
 
@@ -52,7 +48,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const visibleRange = instance.getVirtualItems();
       const visibleIndexes = new Set(visibleRange.map(item => pages[item.index]));
       
-      // Update current page based on the first visible item
       if (visibleRange.length > 0) {
         const firstVisibleIndex = visibleRange[0].index;
         const currentPageNumber = pages[firstVisibleIndex];
@@ -78,71 +73,28 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   });
 
   const handleDownload = async () => {
+    if (!file || !file.name) {
+      toast.error("Invalid file data");
+      return;
+    }
+
+    const safeFileName = file.name
+      .replace(/[^a-zA-Z0-9-_\.]/g, '_')
+      .substring(0, 50);
+    
     try {
-      const { PDFDocument, rgb } = await import('pdf-lib');
-      setIsLoading(true);
-      
-      if (!file || !file.name) {
-        toast.error("Invalid file data");
-        setIsLoading(false);
-        return;
-      }
-
-      if (!navigator.onLine) {
-        toast.error("No internet connection. Please check your network.");
-        setIsLoading(false);
-        return;
-      }
-
-      toast.info("Preparing file for download...");
-      
-      const safeFileName = file.name
-        .replace(/[^a-zA-Z0-9-_\.]/g, '_')
-        .substring(0, 50);
-      
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdfDoc = await PDFDocument.load(arrayBuffer);
-        
-        // Apply redactions
-        for (const redaction of redactions) {
-          const page = pdfDoc.getPage(redaction.pageNumber - 1);
-          page.drawRectangle({
-            x: redaction.x,
-            y: page.getHeight() - redaction.y - redaction.height,
-            width: redaction.width,
-            height: redaction.height,
-            color: rgb(1, 1, 1), // Using the correct RGB helper function
-          });
-        }
-        
-        const pdfBytes = await pdfDoc.save();
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-        const url = window.URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.style.display = 'none';
-        link.href = url;
-        link.download = `${safeFileName}_redacted_${Date.now()}.pdf`;
-        
-        document.body.appendChild(link);
-        link.click();
-        
-        setTimeout(() => {
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        }, 100);
-        
-        toast.success("Download started successfully");
-      } catch (error) {
-        console.error("Download failed:", error);
-        toast.error("Download failed. Please try again.");
-      }
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${safeFileName}_${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("Download started successfully");
     } catch (error) {
-      console.error('Error processing PDF:', error);
-      toast.error("Error processing PDF. Please try again.");
-    } finally {
-      setIsLoading(false);
+      console.error("Download failed:", error);
+      toast.error("Download failed. Please try again.");
     }
   };
 
@@ -181,11 +133,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           numPages={numPages}
           onSplit={handleSplit}
           onDownload={handleDownload}
-        />
-        <PDFRedactionManager
-          isRedactMode={isRedactMode}
-          onRedactModeChange={setIsRedactMode}
-          redactions={redactions}
         />
       </div>
       
@@ -228,26 +175,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                     scale={scale}
                     isLoaded={loadedPages.has(pageNumber)}
                   />
-                  <PDFRedactionLayer
-                    pageNumber={pageNumber}
-                    isRedactMode={isRedactMode}
-                    onRedactionAdd={(redaction) => setRedactions([...redactions, redaction])}
-                  />
-                  {redactions
-                    .filter(r => r.pageNumber === pageNumber)
-                    .map((redaction, index) => (
-                      <div
-                        key={index}
-                        className="absolute bg-white border border-gray-200"
-                        style={{
-                          left: `${redaction.x}px`,
-                          top: `${redaction.y}px`,
-                          width: `${redaction.width}px`,
-                          height: `${redaction.height}px`,
-                          pointerEvents: 'none'
-                        }}
-                      />
-                    ))}
                 </div>
               );
             })}
