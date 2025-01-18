@@ -13,17 +13,18 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [position, setPosition] = useState({ top, left, width, height });
+  const [initialPosition, setInitialPosition] = useState({ top, left, width, height });
+  const [currentPosition, setCurrentPosition] = useState({ top, left, width, height });
   const [resizeHandle, setResizeHandle] = useState<string | null>(null);
-
-  useEffect(() => {
-    onChange(position);
-  }, [position, onChange]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.target === overlayRef.current) {
       setIsDragging(true);
-      setDragStart({ x: e.clientX - position.left, y: e.clientY - position.top });
+      setDragStart({ 
+        x: e.clientX - currentPosition.left, 
+        y: e.clientY - currentPosition.top 
+      });
+      setInitialPosition(currentPosition);
     }
   };
 
@@ -32,6 +33,7 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
     setIsResizing(true);
     setResizeHandle(handle);
     setDragStart({ x: e.clientX, y: e.clientY });
+    setInitialPosition(currentPosition);
   };
 
   useEffect(() => {
@@ -40,62 +42,57 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
         const newLeft = Math.max(0, e.clientX - dragStart.x);
         const newTop = Math.max(0, e.clientY - dragStart.y);
         
-        setPosition(prev => ({
-          ...prev,
+        const newPosition = {
+          ...currentPosition,
           left: newLeft,
           top: newTop
-        }));
+        };
+        
+        setCurrentPosition(newPosition);
+        onChange(newPosition);
       } else if (isResizing && resizeHandle) {
         e.preventDefault();
         const deltaX = e.clientX - dragStart.x;
         const deltaY = e.clientY - dragStart.y;
+        let newPosition = { ...initialPosition };
 
-        setPosition(prev => {
-          let newPosition = { ...prev };
+        switch (resizeHandle) {
+          case 'top-left':
+            newPosition = {
+              top: initialPosition.top + deltaY,
+              left: initialPosition.left + deltaX,
+              width: Math.max(50, initialPosition.width - deltaX),
+              height: Math.max(50, initialPosition.height - deltaY)
+            };
+            break;
+          case 'top-right':
+            newPosition = {
+              top: initialPosition.top + deltaY,
+              left: initialPosition.left,
+              width: Math.max(50, initialPosition.width + deltaX),
+              height: Math.max(50, initialPosition.height - deltaY)
+            };
+            break;
+          case 'bottom-left':
+            newPosition = {
+              top: initialPosition.top,
+              left: initialPosition.left + deltaX,
+              width: Math.max(50, initialPosition.width - deltaX),
+              height: Math.max(50, initialPosition.height + deltaY)
+            };
+            break;
+          case 'bottom-right':
+            newPosition = {
+              top: initialPosition.top,
+              left: initialPosition.left,
+              width: Math.max(50, initialPosition.width + deltaX),
+              height: Math.max(50, initialPosition.height + deltaY)
+            };
+            break;
+        }
 
-          switch (resizeHandle) {
-            case 'top-left':
-              newPosition = {
-                ...prev,
-                top: prev.top + deltaY,
-                left: prev.left + deltaX,
-                width: prev.width - deltaX,
-                height: prev.height - deltaY
-              };
-              break;
-            case 'top-right':
-              newPosition = {
-                ...prev,
-                top: prev.top + deltaY,
-                width: prev.width + deltaX,
-                height: prev.height - deltaY
-              };
-              break;
-            case 'bottom-left':
-              newPosition = {
-                ...prev,
-                left: prev.left + deltaX,
-                width: prev.width - deltaX,
-                height: prev.height + deltaY
-              };
-              break;
-            case 'bottom-right':
-              newPosition = {
-                ...prev,
-                width: prev.width + deltaX,
-                height: prev.height + deltaY
-              };
-              break;
-          }
-
-          // Ensure minimum dimensions
-          newPosition.width = Math.max(50, newPosition.width);
-          newPosition.height = Math.max(50, newPosition.height);
-
-          return newPosition;
-        });
-
-        setDragStart({ x: e.clientX, y: e.clientY });
+        setCurrentPosition(newPosition);
+        onChange(newPosition);
       }
     };
 
@@ -114,21 +111,20 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, isResizing, dragStart, resizeHandle]);
+  }, [isDragging, isResizing, dragStart, resizeHandle, initialPosition]);
 
   return (
     <div
       ref={overlayRef}
-      className="absolute bg-white border-2 border-blue-500 cursor-move"
+      className="absolute bg-white border-2 border-blue-500 cursor-move opacity-80"
       style={{
-        top: position.top,
-        left: position.left,
-        width: position.width,
-        height: position.height,
+        top: currentPosition.top,
+        left: currentPosition.left,
+        width: currentPosition.width,
+        height: currentPosition.height,
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Resize handles */}
       <div
         className="absolute w-3 h-3 bg-blue-500 cursor-nw-resize -left-1.5 -top-1.5"
         onMouseDown={(e) => handleResizeMouseDown(e, 'top-left')}

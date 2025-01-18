@@ -131,13 +131,15 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
 
   const handleAddOverlay = () => {
     setShowOverlay(true);
-    setOverlays([...overlays, { top: 100, left: 100, width: 200, height: 200 }]);
+    setOverlays(prev => [...prev, { top: 100, left: 100, width: 200, height: 200 }]);
   };
 
   const handleOverlayChange = (index: number, position: { top: number; left: number; width: number; height: number }) => {
-    const newOverlays = [...overlays];
-    newOverlays[index] = position;
-    setOverlays(newOverlays);
+    setOverlays(prev => {
+      const newOverlays = [...prev];
+      newOverlays[index] = position;
+      return newOverlays;
+    });
   };
 
   const handleApplyChanges = () => {
@@ -158,7 +160,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           <Button onClick={handleAddOverlay} variant="outline">
             Add Overlay
           </Button>
-          {showOverlay && (
+          {showOverlay && overlays.length > 0 && (
             <Button onClick={handleApplyChanges} variant="default">
               Apply Changes
             </Button>
