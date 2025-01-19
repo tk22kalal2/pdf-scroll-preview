@@ -27,6 +27,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
   const [showOverlay, setShowOverlay] = useState(false);
   const [overlays, setOverlays] = useState<Array<{ top: number; left: number; width: number; height: number }>>([]);
+  const [isEditing, setIsEditing] = useState(true);
 
   useEffect(() => {
     const updateScale = () => {
@@ -151,9 +152,35 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     });
   };
 
-  const handleApplyChanges = () => {
+  const handleApplyChanges = async () => {
+    setIsEditing(false);
     setShowOverlay(false);
-    toast.success("Overlay positions saved");
+    toast.success("Changes applied successfully");
+    
+    // Trigger download after applying changes
+    try {
+      if (!file || !file.name) {
+        toast.error("Invalid file data");
+        return;
+      }
+
+      const safeFileName = file.name
+        .replace(/[^a-zA-Z0-9-_\.]/g, '_')
+        .substring(0, 50);
+      
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `processed_${safeFileName}_${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("Processed PDF downloaded successfully");
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast.error("Download failed. Please try again.");
+    }
   };
 
   return (
@@ -220,6 +247,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
                     <Overlay
                       key={index}
                       {...overlay}
+                      isEditing={isEditing}
                       onChange={(position) => handleOverlayChange(index, position)}
                     />
                   ))}

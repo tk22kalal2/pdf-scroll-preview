@@ -5,10 +5,11 @@ interface OverlayProps {
   left: number;
   width: number;
   height: number;
+  isEditing: boolean;
   onChange: (position: { top: number; left: number; width: number; height: number }) => void;
 }
 
-export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) => {
+export const Overlay = ({ top, left, width, height, isEditing, onChange }: OverlayProps) => {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -31,6 +32,7 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
   };
 
   const handleStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isEditing) return;
     if (e.target === overlayRef.current) {
       setIsDragging(true);
       const coords = getClientCoords(e.nativeEvent);
@@ -43,6 +45,7 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
   };
 
   const handleResizeStart = (e: React.MouseEvent | React.TouchEvent, handle: string) => {
+    if (!isEditing) return;
     e.stopPropagation();
     setIsResizing(true);
     setResizeHandle(handle);
@@ -53,6 +56,7 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
 
   useEffect(() => {
     const handleMove = (e: MouseEvent | TouchEvent) => {
+      if (!isEditing) return;
       const coords = getClientCoords(e);
 
       if (isDragging) {
@@ -132,12 +136,12 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
       document.removeEventListener('touchmove', handleMove);
       document.removeEventListener('touchend', handleEnd);
     };
-  }, [isDragging, isResizing, startPoint, initialPosition, resizeHandle]);
+  }, [isDragging, isResizing, startPoint, initialPosition, resizeHandle, isEditing]);
 
   return (
     <div
       ref={overlayRef}
-      className="absolute bg-white border-2 border-blue-500 cursor-move opacity-90 touch-none"
+      className={`absolute bg-white ${isEditing ? 'border-2 border-blue-500 cursor-move' : ''} opacity-90 touch-none`}
       style={{
         top: currentPosition.top,
         left: currentPosition.left,
@@ -148,26 +152,30 @@ export const Overlay = ({ top, left, width, height, onChange }: OverlayProps) =>
       onMouseDown={handleStart}
       onTouchStart={handleStart}
     >
-      <div
-        className="absolute w-6 h-6 bg-blue-500 cursor-nw-resize -left-3 -top-3 rounded-full"
-        onMouseDown={(e) => handleResizeStart(e, 'top-left')}
-        onTouchStart={(e) => handleResizeStart(e, 'top-left')}
-      />
-      <div
-        className="absolute w-6 h-6 bg-blue-500 cursor-ne-resize -right-3 -top-3 rounded-full"
-        onMouseDown={(e) => handleResizeStart(e, 'top-right')}
-        onTouchStart={(e) => handleResizeStart(e, 'top-right')}
-      />
-      <div
-        className="absolute w-6 h-6 bg-blue-500 cursor-sw-resize -left-3 -bottom-3 rounded-full"
-        onMouseDown={(e) => handleResizeStart(e, 'bottom-left')}
-        onTouchStart={(e) => handleResizeStart(e, 'bottom-left')}
-      />
-      <div
-        className="absolute w-6 h-6 bg-blue-500 cursor-se-resize -right-3 -bottom-3 rounded-full"
-        onMouseDown={(e) => handleResizeStart(e, 'bottom-right')}
-        onTouchStart={(e) => handleResizeStart(e, 'bottom-right')}
-      />
+      {isEditing && (
+        <>
+          <div
+            className="absolute w-6 h-6 bg-blue-500 cursor-nw-resize -left-3 -top-3 rounded-full"
+            onMouseDown={(e) => handleResizeStart(e, 'top-left')}
+            onTouchStart={(e) => handleResizeStart(e, 'top-left')}
+          />
+          <div
+            className="absolute w-6 h-6 bg-blue-500 cursor-ne-resize -right-3 -top-3 rounded-full"
+            onMouseDown={(e) => handleResizeStart(e, 'top-right')}
+            onTouchStart={(e) => handleResizeStart(e, 'top-right')}
+          />
+          <div
+            className="absolute w-6 h-6 bg-blue-500 cursor-sw-resize -left-3 -bottom-3 rounded-full"
+            onMouseDown={(e) => handleResizeStart(e, 'bottom-left')}
+            onTouchStart={(e) => handleResizeStart(e, 'bottom-left')}
+          />
+          <div
+            className="absolute w-6 h-6 bg-blue-500 cursor-se-resize -right-3 -bottom-3 rounded-full"
+            onMouseDown={(e) => handleResizeStart(e, 'bottom-right')}
+            onTouchStart={(e) => handleResizeStart(e, 'bottom-right')}
+          />
+        </>
+      )}
     </div>
   );
 };
