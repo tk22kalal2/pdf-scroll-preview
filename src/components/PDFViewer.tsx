@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Document, pdfjs } from "react-pdf";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { PDFDocument } from 'pdf-lib';
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { PDFControls } from "./pdf/PDFControls";
@@ -155,31 +156,57 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const handleApplyChanges = async () => {
     setIsEditing(false);
     setShowOverlay(false);
-    toast.success("Changes applied successfully");
+    toast.success("Processing PDF...");
     
-    // Trigger download after applying changes
     try {
-      if (!file || !file.name) {
-        toast.error("Invalid file data");
-        return;
+      // Load the PDF document
+      const existingPdfBytes = await file.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+      const pages = pdfDoc.getPages();
+
+      // For each overlay, add a white rectangle to the corresponding page
+      for (const overlay of overlays) {
+        const pageIndex = currentPage - 1;
+        if (pageIndex < pages.length) {
+          const page = pages[pageIndex];
+          const { width, height } = page.getSize();
+          
+          // Convert overlay coordinates to PDF coordinates
+          const pdfX = (overlay.left / containerRef.current!.clientWidth) * width;
+          const pdfY = height - ((overlay.top / containerRef.current!.clientHeight) * height) - (overlay.height * height / containerRef.current!.clientHeight);
+          const pdfWidth = (overlay.width / containerRef.current!.clientWidth) * width;
+          const pdfHeight = (overlay.height / containerRef.current!.clientHeight) * height;
+
+          // Draw white rectangle
+          page.drawRectangle({
+            x: pdfX,
+            y: pdfY,
+            width: pdfWidth,
+            height: pdfHeight,
+            color: { r: 1, g: 1, b: 1 },
+            opacity: 1,
+          });
+        }
       }
 
-      const safeFileName = file.name
-        .replace(/[^a-zA-Z0-9-_\.]/g, '_')
-        .substring(0, 50);
+      // Save the modified PDF
+      const modifiedPdfBytes = await pdfDoc.save();
+      const modifiedPdfBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
       
-      const url = URL.createObjectURL(file);
+      // Download the modified PDF
+      const url = URL.createObjectURL(modifiedPdfBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `processed_${safeFileName}_${Date.now()}.pdf`;
+      link.download = `processed_${file.name}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      toast.success("Processed PDF downloaded successfully");
+      
+      toast.success("PDF processed and downloaded successfully");
     } catch (error) {
-      console.error("Download failed:", error);
-      toast.error("Download failed. Please try again.");
+      console.error("Error processing PDF:", error);
+      toast.error("Failed to process PDF. Please try again.");
     }
   };
 
