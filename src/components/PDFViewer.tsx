@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Document, pdfjs } from "react-pdf";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { PDFControls } from "./pdf/PDFControls";
@@ -177,13 +177,13 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           const pdfWidth = (overlay.width / containerRef.current!.clientWidth) * width;
           const pdfHeight = (overlay.height / containerRef.current!.clientHeight) * height;
 
-          // Draw white rectangle
+          // Draw white rectangle using rgb helper from pdf-lib
           page.drawRectangle({
             x: pdfX,
             y: pdfY,
             width: pdfWidth,
             height: pdfHeight,
-            color: { r: 1, g: 1, b: 1 },
+            color: rgb(1, 1, 1), // Using rgb helper for white color
             opacity: 1,
           });
         }
