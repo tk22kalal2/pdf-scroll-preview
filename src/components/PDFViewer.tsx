@@ -170,23 +170,22 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           const page = pages[pageIndex];
           const { width: pdfWidth, height: pdfHeight } = page.getSize();
           
-          // Get the container dimensions
-          const containerRect = containerRef.current!.getBoundingClientRect();
-          const containerWidth = containerRect.width;
-          const containerHeight = containerRect.height;
+          // Get the PDF page element dimensions
+          const pdfPageElement = containerRef.current?.querySelector('.react-pdf__Page');
+          if (!pdfPageElement) continue;
           
-          // Calculate scale factors
-          const scaleX = pdfWidth / containerWidth;
-          const scaleY = pdfHeight / containerHeight;
+          const pdfRect = pdfPageElement.getBoundingClientRect();
+          
+          // Calculate scale factors based on the actual PDF page dimensions
+          const scaleX = pdfWidth / pdfRect.width;
+          const scaleY = pdfHeight / pdfRect.height;
           
           // Convert screen coordinates to PDF coordinates
           const pdfX = overlay.left * scaleX;
-          // In PDF coordinates, Y=0 is at the bottom, so we need to flip it
-          const pdfY = pdfHeight - ((overlay.top + overlay.height) * scaleY);
+          const pdfY = pdfHeight - (overlay.top * scaleY);
           const scaledWidth = overlay.width * scaleX;
           const scaledHeight = overlay.height * scaleY;
 
-          // Draw white rectangle using rgb helper from pdf-lib
           page.drawRectangle({
             x: pdfX,
             y: pdfY,
