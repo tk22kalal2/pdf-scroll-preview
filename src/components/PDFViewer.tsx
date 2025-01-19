@@ -29,6 +29,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [showOverlay, setShowOverlay] = useState(false);
   const [overlays, setOverlays] = useState<Array<{ top: number; left: number; width: number; height: number }>>([]);
   const [isEditing, setIsEditing] = useState(true);
+  const [modifiedPdfBytes, setModifiedPdfBytes] = useState<Uint8Array | null>(null);
 
   useEffect(() => {
     const updateScale = () => {
@@ -84,12 +85,19 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       return;
     }
 
-    const safeFileName = file.name
-      .replace(/[^a-zA-Z0-9-_\.]/g, '_')
-      .substring(0, 50);
-    
     try {
-      const url = URL.createObjectURL(file);
+      let downloadData: Blob;
+      if (modifiedPdfBytes) {
+        downloadData = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+      } else {
+        downloadData = file;
+      }
+
+      const safeFileName = file.name
+        .replace(/[^a-zA-Z0-9-_\.]/g, '_')
+        .substring(0, 50);
+      
+      const url = URL.createObjectURL(downloadData);
       const link = document.createElement('a');
       link.href = url;
       link.download = `${safeFileName}_${Date.now()}.pdf`;
@@ -163,24 +171,20 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       const pdfDoc = await PDFDocument.load(existingPdfBytes);
       const pages = pdfDoc.getPages();
 
-      // For each overlay, add a white rectangle to the corresponding page
       for (const overlay of overlays) {
         const pageIndex = currentPage - 1;
         if (pageIndex < pages.length) {
           const page = pages[pageIndex];
           const { width: pdfWidth, height: pdfHeight } = page.getSize();
           
-          // Get the PDF page element dimensions
           const pdfPageElement = containerRef.current?.querySelector('.react-pdf__Page');
           if (!pdfPageElement) continue;
           
           const pdfRect = pdfPageElement.getBoundingClientRect();
           
-          // Calculate scale factors based on the actual PDF page dimensions
           const scaleX = pdfWidth / pdfRect.width;
           const scaleY = pdfHeight / pdfRect.height;
           
-          // Convert screen coordinates to PDF coordinates
           const pdfX = overlay.left * scaleX;
           const pdfY = pdfHeight - (overlay.top * scaleY);
           const scaledWidth = overlay.width * scaleX;
@@ -197,21 +201,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         }
       }
 
-      // Save the modified PDF
-      const modifiedPdfBytes = await pdfDoc.save();
-      const modifiedPdfBlob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
-      
-      // Download the modified PDF
-      const url = URL.createObjectURL(modifiedPdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `processed_${file.name}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      toast.success("PDF processed and downloaded successfully");
+      const modifiedBytes = await pdfDoc.save();
+      setModifiedPdfBytes(modifiedBytes);
+      toast.success("Changes applied successfully. Click Download to save the PDF.");
     } catch (error) {
       console.error("Error processing PDF:", error);
       toast.error("Failed to process PDF. Please try again.");
