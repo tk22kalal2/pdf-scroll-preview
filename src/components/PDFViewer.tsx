@@ -159,7 +159,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     toast.success("Processing PDF...");
     
     try {
-      // Load the PDF document
       const existingPdfBytes = await file.arrayBuffer();
       const pdfDoc = await PDFDocument.load(existingPdfBytes);
       const pages = pdfDoc.getPages();
@@ -169,21 +168,31 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         const pageIndex = currentPage - 1;
         if (pageIndex < pages.length) {
           const page = pages[pageIndex];
-          const { width, height } = page.getSize();
+          const { width: pdfWidth, height: pdfHeight } = page.getSize();
           
-          // Convert overlay coordinates to PDF coordinates
-          const pdfX = (overlay.left / containerRef.current!.clientWidth) * width;
-          const pdfY = height - ((overlay.top / containerRef.current!.clientHeight) * height) - (overlay.height * height / containerRef.current!.clientHeight);
-          const pdfWidth = (overlay.width / containerRef.current!.clientWidth) * width;
-          const pdfHeight = (overlay.height / containerRef.current!.clientHeight) * height;
+          // Get the container dimensions
+          const containerRect = containerRef.current!.getBoundingClientRect();
+          const containerWidth = containerRect.width;
+          const containerHeight = containerRect.height;
+          
+          // Calculate scale factors
+          const scaleX = pdfWidth / containerWidth;
+          const scaleY = pdfHeight / containerHeight;
+          
+          // Convert screen coordinates to PDF coordinates
+          const pdfX = overlay.left * scaleX;
+          // In PDF coordinates, Y=0 is at the bottom, so we need to flip it
+          const pdfY = pdfHeight - ((overlay.top + overlay.height) * scaleY);
+          const scaledWidth = overlay.width * scaleX;
+          const scaledHeight = overlay.height * scaleY;
 
           // Draw white rectangle using rgb helper from pdf-lib
           page.drawRectangle({
             x: pdfX,
             y: pdfY,
-            width: pdfWidth,
-            height: pdfHeight,
-            color: rgb(1, 1, 1), // Using rgb helper for white color
+            width: scaledWidth,
+            height: scaledHeight,
+            color: rgb(1, 1, 1),
             opacity: 1,
           });
         }
