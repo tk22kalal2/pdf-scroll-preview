@@ -177,18 +177,27 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           const page = pages[pageIndex];
           const { width: pdfWidth, height: pdfHeight } = page.getSize();
           
+          // Get the PDF page element and its container
           const pdfPageElement = containerRef.current?.querySelector('.react-pdf__Page');
-          if (!pdfPageElement) continue;
+          const pageContainer = pdfPageElement?.querySelector('.react-pdf__Page__canvas');
+          if (!pdfPageElement || !pageContainer) continue;
           
-          const pdfRect = pdfPageElement.getBoundingClientRect();
+          // Get the actual dimensions of the rendered PDF page
+          const pageRect = pageContainer.getBoundingClientRect();
           
-          const scaleX = pdfWidth / pdfRect.width;
-          const scaleY = pdfHeight / pdfRect.height;
+          // Calculate the relative position of the overlay within the page
+          const relativeLeft = (overlay.left - pageRect.left) / pageRect.width;
+          const relativeTop = (overlay.top - pageRect.top) / pageRect.height;
           
-          const pdfX = overlay.left * scaleX;
-          const pdfY = pdfHeight - (overlay.top * scaleY);
-          const scaledWidth = overlay.width * scaleX;
-          const scaledHeight = overlay.height * scaleY;
+          // Calculate the relative size of the overlay
+          const relativeWidth = overlay.width / pageRect.width;
+          const relativeHeight = overlay.height / pageRect.height;
+          
+          // Convert relative coordinates to PDF coordinates
+          const pdfX = relativeLeft * pdfWidth;
+          const pdfY = pdfHeight - (relativeTop * pdfHeight) - (relativeHeight * pdfHeight);
+          const scaledWidth = relativeWidth * pdfWidth;
+          const scaledHeight = relativeHeight * pdfHeight;
 
           page.drawRectangle({
             x: pdfX,
