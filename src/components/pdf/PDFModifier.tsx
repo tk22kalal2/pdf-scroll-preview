@@ -29,16 +29,16 @@ export const modifyPDF = async ({
       
       const pageRect = pageContainer.getBoundingClientRect();
       
-      // Calculate relative positions (0-1 range)
+      // Calculate positions relative to the page dimensions
       const relativeLeft = (overlay.left - pageRect.left) / pageRect.width;
       const relativeTop = (overlay.top - pageRect.top) / pageRect.height;
       const relativeWidth = overlay.width / pageRect.width;
       const relativeHeight = overlay.height / pageRect.height;
       
-      // Convert to PDF coordinates
+      // Convert to PDF coordinates with corrected Y-axis positioning
       const pdfX = relativeLeft * pdfWidth;
-      // Adjust Y-coordinate calculation to match preview
-      const pdfY = (1 - relativeTop) * pdfHeight - (relativeHeight * pdfHeight);
+      // Start from the top of the page and move down by the relative position
+      const pdfY = pdfHeight * (1 - relativeTop - relativeHeight);
 
       page.drawRectangle({
         x: pdfX,
