@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import { Document, pdfjs } from "react-pdf";
+import { pdfjs } from "react-pdf";
 import { toast } from "sonner";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { PDFDocument, rgb } from 'pdf-lib';
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { PDFControls } from "./pdf/PDFControls";
 import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
-import { PDFPage } from "./pdf/PDFPage";
-import { Button } from "./ui/button";
-import { Overlay } from "./pdf/Overlay";
+import { PDFOverlayEditor } from "./pdf/PDFOverlayEditor";
+import { PDFDocumentView } from "./pdf/PDFDocumentView";
+import { modifyPDF } from "./pdf/PDFModifier";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
@@ -61,20 +60,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         setCurrentPage(currentPageNumber);
       }
       
-      for (let i = -2; i <= 2; i++) {
-        const firstVisible = visibleRange[0]?.index ?? 0;
-        const lastVisible = visibleRange[visibleRange.length - 1]?.index ?? 0;
-        const bufferIndex = firstVisible + i;
-        const bufferIndex2 = lastVisible + i;
-        
-        if (bufferIndex >= 0 && bufferIndex < pages.length) {
-          visibleIndexes.add(pages[bufferIndex]);
-        }
-        if (bufferIndex2 >= 0 && bufferIndex2 < pages.length) {
-          visibleIndexes.add(pages[bufferIndex2]);
-        }
-      }
-
       setLoadedPages(visibleIndexes);
     }
   });
@@ -167,50 +152,13 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     toast.success("Processing PDF...");
     
     try {
-      const existingPdfBytes = await file.arrayBuffer();
-      const pdfDoc = await PDFDocument.load(existingPdfBytes);
-      const pages = pdfDoc.getPages();
-
-      for (const overlay of overlays) {
-        const pageIndex = currentPage - 1;
-        if (pageIndex < pages.length) {
-          const page = pages[pageIndex];
-          const { width: pdfWidth, height: pdfHeight } = page.getSize();
-          
-          // Get the PDF page element and its container
-          const pdfPageElement = containerRef.current?.querySelector('.react-pdf__Page');
-          const pageContainer = pdfPageElement?.querySelector('.react-pdf__Page__canvas');
-          if (!pdfPageElement || !pageContainer) continue;
-          
-          // Get the actual dimensions of the rendered PDF page
-          const pageRect = pageContainer.getBoundingClientRect();
-          
-          // Calculate the relative position of the overlay within the page
-          const relativeLeft = (overlay.left - pageRect.left) / pageRect.width;
-          const relativeTop = (overlay.top - pageRect.top) / pageRect.height;
-          
-          // Calculate the relative size of the overlay
-          const relativeWidth = overlay.width / pageRect.width;
-          const relativeHeight = overlay.height / pageRect.height;
-          
-          // Convert relative coordinates to PDF coordinates
-          const pdfX = relativeLeft * pdfWidth;
-          const pdfY = pdfHeight - (relativeTop * pdfHeight) - (relativeHeight * pdfHeight);
-          const scaledWidth = relativeWidth * pdfWidth;
-          const scaledHeight = relativeHeight * pdfHeight;
-
-          page.drawRectangle({
-            x: pdfX,
-            y: pdfY,
-            width: scaledWidth,
-            height: scaledHeight,
-            color: rgb(1, 1, 1),
-            opacity: 1,
-          });
-        }
-      }
-
-      const modifiedBytes = await pdfDoc.save();
+      const modifiedBytes = await modifyPDF({
+        file,
+        currentPage,
+        overlays,
+        containerRef
+      });
+      
       setModifiedPdfBytes(modifiedBytes);
       toast.success("Changes applied successfully. Click Download to save the PDF.");
     } catch (error) {
@@ -228,16 +176,14 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           onSplit={handleSplit}
           onDownload={handleDownload}
         />
-        <div className="flex gap-2">
-          <Button onClick={handleAddOverlay} variant="outline">
-            Add Overlay
-          </Button>
-          {showOverlay && overlays.length > 0 && (
-            <Button onClick={handleApplyChanges} variant="default">
-              Apply Changes
-            </Button>
-          )}
-        </div>
+        <PDFOverlayEditor
+          showOverlay={showOverlay}
+          overlays={overlays}
+          isEditing={isEditing}
+          onAddOverlay={handleAddOverlay}
+          onApplyChanges={handleApplyChanges}
+          onOverlayChange={handleOverlayChange}
+        />
       </div>
       
       <div 
@@ -245,54 +191,20 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         className="max-h-[85vh] overflow-y-auto px-4 relative"
         style={{ height: '85vh' }}
       >
-        <Document
+        <PDFDocumentView
           file={file}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={() => toast.error("Error loading PDF")}
-          loading={<div className="text-center py-4">Loading PDF...</div>}
-          className="flex flex-col items-center"
-        >
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: '100%',
-              position: 'relative',
-            }}
-          >
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const pageNumber = pages[virtualItem.index];
-              return (
-                <div
-                  key={virtualItem.key}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                  className="flex justify-center mb-8 relative"
-                >
-                  <PDFPage
-                    pageNumber={pageNumber}
-                    scale={scale}
-                    isLoaded={loadedPages.has(pageNumber)}
-                  />
-                  {(showOverlay || overlays.length > 0) && overlays.map((overlay, index) => (
-                    <Overlay
-                      key={index}
-                      {...overlay}
-                      isEditing={isEditing}
-                      onChange={(position) => handleOverlayChange(index, position)}
-                    />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </Document>
+          onDocumentLoadSuccess={onDocumentLoadSuccess}
+          virtualizer={virtualizer}
+          pages={pages}
+          loadedPages={loadedPages}
+          scale={scale}
+          showOverlay={showOverlay}
+          overlays={overlays}
+          isEditing={isEditing}
+          onOverlayChange={handleOverlayChange}
+        />
       </div>
+      
       {numPages > 0 && (
         <PDFPageNavigator
           currentPage={currentPage}
