@@ -29,22 +29,22 @@ export const modifyPDF = async ({
       
       const pageRect = pageContainer.getBoundingClientRect();
       
+      // Calculate relative positions (0-1 range)
       const relativeLeft = (overlay.left - pageRect.left) / pageRect.width;
       const relativeTop = (overlay.top - pageRect.top) / pageRect.height;
-      
       const relativeWidth = overlay.width / pageRect.width;
       const relativeHeight = overlay.height / pageRect.height;
       
+      // Convert to PDF coordinates
       const pdfX = relativeLeft * pdfWidth;
-      const pdfY = pdfHeight - (relativeTop * pdfHeight) - (relativeHeight * pdfHeight);
-      const scaledWidth = relativeWidth * pdfWidth;
-      const scaledHeight = relativeHeight * pdfHeight;
+      // Adjust Y-coordinate calculation to match preview
+      const pdfY = (1 - relativeTop) * pdfHeight - (relativeHeight * pdfHeight);
 
       page.drawRectangle({
         x: pdfX,
         y: pdfY,
-        width: scaledWidth,
-        height: scaledHeight,
+        width: relativeWidth * pdfWidth,
+        height: relativeHeight * pdfHeight,
         color: rgb(1, 1, 1),
         opacity: 1,
       });
