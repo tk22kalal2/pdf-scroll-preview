@@ -38,53 +38,73 @@ export const modifyPDF = async ({
         height: pageRect.height
       });
 
-      // Log original overlay coordinates
-      console.log('Original Overlay Coordinates:', {
-        top: overlay.top,
-        right: overlay.left + overlay.width,
-        bottom: overlay.top + overlay.height,
-        left: overlay.left,
-        width: overlay.width,
-        height: overlay.height
-      });
+      // Get preview overlay coordinates
+      const previewCoordinates = {
+        topLeft: {
+          x: overlay.left,
+          y: overlay.top
+        },
+        topRight: {
+          x: overlay.left + overlay.width,
+          y: overlay.top
+        },
+        bottomLeft: {
+          x: overlay.left,
+          y: overlay.top + overlay.height
+        },
+        bottomRight: {
+          x: overlay.left + overlay.width,
+          y: overlay.top + overlay.height
+        }
+      };
 
-      // Calculate relative positions
-      const relativeLeft = (overlay.left - pageRect.left) / pageRect.width;
-      const relativeTop = (overlay.top - pageRect.top) / pageRect.height;
-      const relativeWidth = overlay.width / pageRect.width;
-      const relativeHeight = overlay.height / pageRect.height;
+      console.log('Preview Overlay Coordinates:', previewCoordinates);
 
-      // Log relative positions (0-1 range)
-      console.log('Relative Positions (0-1 range):', {
-        left: relativeLeft,
-        top: relativeTop,
-        width: relativeWidth,
-        height: relativeHeight
-      });
+      // Calculate relative positions (0-1 range)
+      const relativePositions = {
+        topLeft: {
+          x: (previewCoordinates.topLeft.x - pageRect.left) / pageRect.width,
+          y: (previewCoordinates.topLeft.y - pageRect.top) / pageRect.height
+        },
+        topRight: {
+          x: (previewCoordinates.topRight.x - pageRect.left) / pageRect.width,
+          y: (previewCoordinates.topRight.y - pageRect.top) / pageRect.height
+        },
+        bottomLeft: {
+          x: (previewCoordinates.bottomLeft.x - pageRect.left) / pageRect.width,
+          y: (previewCoordinates.bottomLeft.y - pageRect.top) / pageRect.height
+        },
+        bottomRight: {
+          x: (previewCoordinates.bottomRight.x - pageRect.left) / pageRect.width,
+          y: (previewCoordinates.bottomRight.y - pageRect.top) / pageRect.height
+        }
+      };
+
+      console.log('Relative Positions (0-1 range):', relativePositions);
 
       // Convert to PDF coordinates
-      const pdfX = relativeLeft * pdfWidth;
-      const pdfY = pdfHeight - ((relativeTop + relativeHeight) * pdfHeight);
+      const pdfCoordinates = {
+        x: relativePositions.topLeft.x * pdfWidth,
+        y: pdfHeight - (relativePositions.topLeft.y * pdfHeight),
+        width: (relativePositions.topRight.x - relativePositions.topLeft.x) * pdfWidth,
+        height: (relativePositions.bottomLeft.y - relativePositions.topLeft.y) * pdfHeight
+      };
 
-      // Log final PDF coordinates
       console.log('Final PDF Coordinates:', {
-        x: pdfX,
-        y: pdfY,
-        width: relativeWidth * pdfWidth,
-        height: relativeHeight * pdfHeight,
+        ...pdfCoordinates,
         corners: {
-          topLeft: { x: pdfX, y: pdfY + (relativeHeight * pdfHeight) },
-          topRight: { x: pdfX + (relativeWidth * pdfWidth), y: pdfY + (relativeHeight * pdfHeight) },
-          bottomLeft: { x: pdfX, y: pdfY },
-          bottomRight: { x: pdfX + (relativeWidth * pdfWidth), y: pdfY }
+          topLeft: { x: pdfCoordinates.x, y: pdfCoordinates.y },
+          topRight: { x: pdfCoordinates.x + pdfCoordinates.width, y: pdfCoordinates.y },
+          bottomLeft: { x: pdfCoordinates.x, y: pdfCoordinates.y - pdfCoordinates.height },
+          bottomRight: { x: pdfCoordinates.x + pdfCoordinates.width, y: pdfCoordinates.y - pdfCoordinates.height }
         }
       });
 
       page.drawRectangle({
-        x: pdfX,
-        y: pdfY,
-        width: relativeWidth * pdfWidth,
-        height: relativeHeight * pdfHeight,
+        x: pdfCoordinates.x,
+        y: pdfCoordinates.y - pdfCoordinates.height, // Adjust Y to account for PDF coordinate system
+        width: pdfCoordinates.width,
+        height: pdfCoordinates.height,
         color: rgb(1, 1, 1),
         opacity: 1,
       });
