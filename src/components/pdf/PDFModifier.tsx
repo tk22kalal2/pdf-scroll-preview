@@ -38,71 +38,41 @@ export const modifyPDF = async ({
         height: pageRect.height
       });
 
-      // Get preview overlay coordinates
-      const previewCoordinates = {
-        topLeft: {
-          x: overlay.left,
-          y: overlay.top
-        },
-        topRight: {
-          x: overlay.left + overlay.width,
-          y: overlay.top
-        },
-        bottomLeft: {
-          x: overlay.left,
-          y: overlay.top + overlay.height
-        },
-        bottomRight: {
-          x: overlay.left + overlay.width,
-          y: overlay.top + overlay.height
-        }
+      // Normalize coordinates to ensure they're within page bounds
+      const normalizedCoordinates = {
+        left: Math.max(0, overlay.left),
+        top: Math.max(0, overlay.top),
+        width: overlay.width,
+        height: overlay.height
       };
 
-      console.log('Preview Overlay Coordinates:', previewCoordinates);
+      // Calculate scale factors
+      const scaleX = pdfWidth / pageRect.width;
+      const scaleY = pdfHeight / pageRect.height;
 
-      // Calculate relative positions (0-1 range)
-      const relativePositions = {
-        topLeft: {
-          x: (previewCoordinates.topLeft.x - pageRect.left) / pageRect.width,
-          y: (previewCoordinates.topLeft.y - pageRect.top) / pageRect.height
-        },
-        topRight: {
-          x: (previewCoordinates.topRight.x - pageRect.left) / pageRect.width,
-          y: (previewCoordinates.topRight.y - pageRect.top) / pageRect.height
-        },
-        bottomLeft: {
-          x: (previewCoordinates.bottomLeft.x - pageRect.left) / pageRect.width,
-          y: (previewCoordinates.bottomLeft.y - pageRect.top) / pageRect.height
-        },
-        bottomRight: {
-          x: (previewCoordinates.bottomRight.x - pageRect.left) / pageRect.width,
-          y: (previewCoordinates.bottomRight.y - pageRect.top) / pageRect.height
-        }
-      };
-
-      console.log('Relative Positions (0-1 range):', relativePositions);
-
-      // Convert to PDF coordinates
+      // Convert preview coordinates to PDF coordinates
       const pdfCoordinates = {
-        x: relativePositions.topLeft.x * pdfWidth,
-        y: pdfHeight - (relativePositions.topLeft.y * pdfHeight),
-        width: (relativePositions.topRight.x - relativePositions.topLeft.x) * pdfWidth,
-        height: (relativePositions.bottomLeft.y - relativePositions.topLeft.y) * pdfHeight
+        x: normalizedCoordinates.left * scaleX,
+        y: pdfHeight - ((normalizedCoordinates.top * scaleY) + (normalizedCoordinates.height * scaleY)),
+        width: normalizedCoordinates.width * scaleX,
+        height: normalizedCoordinates.height * scaleY
       };
 
+      console.log('Normalized Preview Coordinates:', normalizedCoordinates);
+      console.log('Scale Factors:', { scaleX, scaleY });
       console.log('Final PDF Coordinates:', {
         ...pdfCoordinates,
         corners: {
-          topLeft: { x: pdfCoordinates.x, y: pdfCoordinates.y },
-          topRight: { x: pdfCoordinates.x + pdfCoordinates.width, y: pdfCoordinates.y },
-          bottomLeft: { x: pdfCoordinates.x, y: pdfCoordinates.y - pdfCoordinates.height },
-          bottomRight: { x: pdfCoordinates.x + pdfCoordinates.width, y: pdfCoordinates.y - pdfCoordinates.height }
+          topLeft: { x: pdfCoordinates.x, y: pdfCoordinates.y + pdfCoordinates.height },
+          topRight: { x: pdfCoordinates.x + pdfCoordinates.width, y: pdfCoordinates.y + pdfCoordinates.height },
+          bottomLeft: { x: pdfCoordinates.x, y: pdfCoordinates.y },
+          bottomRight: { x: pdfCoordinates.x + pdfCoordinates.width, y: pdfCoordinates.y }
         }
       });
 
       page.drawRectangle({
         x: pdfCoordinates.x,
-        y: pdfCoordinates.y - pdfCoordinates.height, // Adjust Y to account for PDF coordinate system
+        y: pdfCoordinates.y,
         width: pdfCoordinates.width,
         height: pdfCoordinates.height,
         color: rgb(1, 1, 1),
