@@ -66,7 +66,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "mixtral-8x7b-32768",  // Changed to a model that exists on Groq
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",  // Changed to a model that exists on Groq
         messages: [
           {
             role: "system",
