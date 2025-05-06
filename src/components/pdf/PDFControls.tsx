@@ -1,5 +1,6 @@
+
 import { useState } from "react";
-import { Split, Download } from "lucide-react";
+import { Split, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -10,9 +11,11 @@ interface PDFControlsProps {
   numPages: number;
   onSplit: (start: number, end: number) => void;
   onDownload: () => void;
+  onGenerateNotes?: () => void;
+  isSplit: boolean;
 }
 
-export const PDFControls = ({ isLoading, numPages, onSplit, onDownload }: PDFControlsProps) => {
+export const PDFControls = ({ isLoading, numPages, onSplit, onDownload, onGenerateNotes, isSplit }: PDFControlsProps) => {
   const [startPage, setStartPage] = useState("");
   const [endPage, setEndPage] = useState("");
 
@@ -77,6 +80,17 @@ export const PDFControls = ({ isLoading, numPages, onSplit, onDownload }: PDFCon
         <Download className="mr-2" />
         Download
       </Button>
+      {onGenerateNotes && (
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={onGenerateNotes} 
+          disabled={isLoading || !isSplit}
+        >
+          <FileText className="mr-2" />
+          Notes
+        </Button>
+      )}
     </div>
   );
 };

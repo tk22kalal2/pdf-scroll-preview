@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Document, pdfjs } from "react-pdf";
 import { toast } from "sonner";
@@ -7,6 +8,8 @@ import "react-pdf/dist/Page/TextLayer.css";
 import { PDFControls } from "./pdf/PDFControls";
 import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
 import { PDFPage } from "./pdf/PDFPage";
+import { PDFNotes } from "./pdf/PDFNotes";
+import { performOCR, generateNotesFromText } from "@/utils/pdfUtils";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
@@ -23,6 +26,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
+  const [notes, setNotes] = useState("");
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [isProcessingNotes, setIsProcessingNotes] = useState(false);
 
   useEffect(() => {
     const updateScale = () => {
@@ -125,14 +131,45 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     setCurrentPage(targetPage);
   };
 
+  const handleGenerateNotes = async () => {
+    if (!isSplit || splitPdfPages.length === 0) {
+      toast.error("Please split the PDF first before generating notes");
+      return;
+    }
+
+    setIsProcessingNotes(true);
+    toast.loading("Extracting text from PDF...");
+
+    try {
+      // Step 1: Perform OCR on the split PDF pages
+      const ocrResult = await performOCR(file, splitPdfPages);
+      toast.loading("Generating notes from extracted text...");
+
+      // Step 2: Send OCR text to Groq API to generate notes
+      const notesResult = await generateNotesFromText(ocrResult.text);
+      
+      // Step 3: Display the generated notes
+      setNotes(notesResult.notes);
+      setIsNotesOpen(true);
+      toast.success("Notes generated successfully");
+    } catch (error) {
+      console.error("Notes generation error:", error);
+      toast.error("Failed to generate notes. Please try again.");
+    } finally {
+      setIsProcessingNotes(false);
+    }
+  };
+
   return (
     <div className="relative bg-white rounded-lg shadow-lg">
       <div className="flex items-center justify-between p-4 border-b">
         <PDFControls
-          isLoading={isLoading}
+          isLoading={isLoading || isProcessingNotes}
           numPages={numPages}
           onSplit={handleSplit}
           onDownload={handleDownload}
+          onGenerateNotes={handleGenerateNotes}
+          isSplit={isSplit}
         />
       </div>
       
@@ -186,6 +223,14 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
           currentPage={currentPage}
           totalPages={isSplit ? splitPdfPages.length : numPages}
           onJumpToPage={handleJumpToPage}
+        />
+      )}
+      
+      {isNotesOpen && (
+        <PDFNotes 
+          notes={notes} 
+          isOpen={isNotesOpen} 
+          onClose={() => setIsNotesOpen(false)} 
         />
       )}
     </div>
