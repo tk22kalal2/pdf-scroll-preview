@@ -54,41 +54,23 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
  */
 export const generateNotesFromText = async (ocrText: string): Promise<NotesResult> => {
   try {
-    // In a real implementation, this would call the Groq API
-    // For demonstration purposes, we're using a simple transformation
+    const GROQ_API_KEY = "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";
+    const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
     
-    // This would normally be an API key stored securely
-    // For demo purposes, we're showing how it would be structured
-    const GROQ_API_KEY = ""; // Would be retrieved from env variables or user input
+    console.log("Using Groq API to generate notes");
     
-    if (!GROQ_API_KEY) {
-      // If no API key, we'll simulate a response
-      console.log("No Groq API key provided - generating sample notes");
-      
-      // Simple note generation for demo
-      const lines = ocrText.split('\n');
-      const filteredLines = lines
-        .filter(line => line.trim().length > 10) // Only keep substantial lines
-        .map(line => `• ${line.trim()}`);
-      
-      const notes = filteredLines.join('\n');
-      return { notes: notes || "Could not generate notes from the text." };
-    }
-    
-    // This would be the actual API call
-    /*
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch(GROQ_API_URL, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${GROQ_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "llama3-8b-8192",
+        model: "llama-3-8b-8192",
         messages: [
           {
             role: "system",
-            content: "You are a helpful assistant that creates concise, organized notes from PDF text."
+            content: "You are a helpful assistant that creates concise, organized notes from PDF text. Format your response with clear headings, bullet points, and numbered lists where appropriate."
           },
           {
             role: "user",
@@ -101,20 +83,27 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     });
     
     if (!response.ok) {
+      const errorData = await response.text();
+      console.error("Groq API error response:", errorData);
       throw new Error(`Groq API error: ${response.status}`);
     }
     
     const data = await response.json();
     const notes = data.choices[0].message.content;
-    */
     
-    // Simulated response
-    const notes = `Notes from PDF:\n\n• ${ocrText.slice(0, 100)}...\n• Important point 1\n• Important point 2`;
     return { notes };
     
   } catch (error) {
     console.error("Groq API Error:", error);
     toast.error("Failed to generate notes from text");
-    throw error;
+    
+    // Fallback to simple note generation if the API call fails
+    const lines = ocrText.split('\n');
+    const filteredLines = lines
+      .filter(line => line.trim().length > 10)
+      .map(line => `• ${line.trim()}`);
+    
+    const fallbackNotes = `Notes from PDF (API call failed - using fallback):\n\n${filteredLines.join('\n')}`;
+    return { notes: fallbackNotes };
   }
 };
