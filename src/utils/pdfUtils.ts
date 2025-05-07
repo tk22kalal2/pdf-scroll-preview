@@ -137,7 +137,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "llama3-70b-8192", // Updated model that is supported
+        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Updated model that is supported
         messages: [
           {
             role: "system",
