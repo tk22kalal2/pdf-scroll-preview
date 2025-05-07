@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Document, pdfjs } from "react-pdf";
 import { toast } from "sonner";
@@ -9,6 +8,7 @@ import { PDFControls } from "./pdf/PDFControls";
 import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
 import { PDFPage } from "./pdf/PDFPage";
 import { PDFNotes } from "./pdf/PDFNotes";
+import { NotesEditor } from "./pdf/NotesEditor";
 import { performOCR, generateNotesFromText } from "@/utils/pdfUtils";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
@@ -29,6 +29,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const [notes, setNotes] = useState("");
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [isProcessingNotes, setIsProcessingNotes] = useState(false);
+  const [showingNotes, setShowingNotes] = useState(false);
 
   useEffect(() => {
     const updateScale = () => {
@@ -148,9 +149,9 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       // Step 2: Send OCR text to Groq API to generate notes
       const notesResult = await generateNotesFromText(ocrResult.text);
       
-      // Step 3: Display the generated notes
+      // Step 3: Display the generated notes in TinyMCE editor
       setNotes(notesResult.notes);
-      setIsNotesOpen(true);
+      setShowingNotes(true);
       toast.success("Notes generated successfully");
     } catch (error) {
       console.error("Notes generation error:", error);
@@ -158,6 +159,10 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     } finally {
       setIsProcessingNotes(false);
     }
+  };
+  
+  const handleReturnToPdf = () => {
+    setShowingNotes(false);
   };
 
   return (
@@ -173,57 +178,63 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
         />
       </div>
       
-      <div 
-        ref={containerRef}
-        className="max-h-[85vh] overflow-y-auto px-4 relative"
-        style={{ height: '85vh' }}
-      >
-        <Document
-          file={file}
-          onLoadSuccess={onDocumentLoadSuccess}
-          onLoadError={() => toast.error("Error loading PDF")}
-          loading={<div className="text-center py-4">Loading PDF...</div>}
-          className="flex flex-col items-center"
-        >
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: '100%',
-              position: 'relative',
-            }}
+      {showingNotes ? (
+        <NotesEditor notes={notes} onReturn={handleReturnToPdf} />
+      ) : (
+        <>
+          <div 
+            ref={containerRef}
+            className="max-h-[85vh] overflow-y-auto px-4 relative"
+            style={{ height: '85vh' }}
           >
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-              const pageNumber = pages[virtualItem.index];
-              return (
-                <div
-                  key={virtualItem.key}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
-                  className="flex justify-center mb-8 relative"
-                >
-                  <PDFPage
-                    pageNumber={pageNumber}
-                    scale={scale}
-                    isLoaded={loadedPages.has(pageNumber)}
-                  />
-                </div>
-              );
-            })}
+            <Document
+              file={file}
+              onLoadSuccess={onDocumentLoadSuccess}
+              onLoadError={() => toast.error("Error loading PDF")}
+              loading={<div className="text-center py-4">Loading PDF...</div>}
+              className="flex flex-col items-center"
+            >
+              <div
+                style={{
+                  height: `${virtualizer.getTotalSize()}px`,
+                  width: '100%',
+                  position: 'relative',
+                }}
+              >
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const pageNumber = pages[virtualItem.index];
+                  return (
+                    <div
+                      key={virtualItem.key}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: `${virtualItem.size}px`,
+                        transform: `translateY(${virtualItem.start}px)`,
+                      }}
+                      className="flex justify-center mb-8 relative"
+                    >
+                      <PDFPage
+                        pageNumber={pageNumber}
+                        scale={scale}
+                        isLoaded={loadedPages.has(pageNumber)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </Document>
           </div>
-        </Document>
-      </div>
-      {numPages > 0 && (
-        <PDFPageNavigator
-          currentPage={currentPage}
-          totalPages={isSplit ? splitPdfPages.length : numPages}
-          onJumpToPage={handleJumpToPage}
-        />
+          {numPages > 0 && (
+            <PDFPageNavigator
+              currentPage={currentPage}
+              totalPages={isSplit ? splitPdfPages.length : numPages}
+              onJumpToPage={handleJumpToPage}
+            />
+          )}
+        </>
       )}
       
       {isNotesOpen && (
