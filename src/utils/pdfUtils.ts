@@ -141,34 +141,36 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         messages: [
           {
             role: "system",
-            content: `You are a professional note organizer that creates beautifully formatted, structured notes from PDF text. 
+            content: `You are a professional note organizer that creates beautifully formatted, comprehensive notes from PDF text. 
             Your task is to reorganize and format the content following these guidelines:
             
-            - Organize content logically with proper hierarchy, proper sequence and proper relationship between headings, sub-headings and concepts.
+            - DO NOT SKIP ANY CONTENT OR INFORMATION from the original PDF text
+            - Create DETAILED notes rather than concise ones
+            - Include ALL information from the original text, preserving all facts, numbers, terminology, and examples
+            - Organize content logically with proper hierarchy, proper sequence and proper relationship between headings, sub-headings and concepts
+            - Explain concepts in simple, easy-to-understand language while maintaining complete accuracy
+            - Define technical terms or jargon when they first appear
+            - Expand abbreviations and acronyms at first use
             - Use clear section headings with proper HTML styling:
               * Main headings: <h1 style="color: rgb(71, 0, 0);"><strong><u>Main Heading</u></strong></h1>
               * Secondary headings: <h2 style="color: rgb(26, 1, 157);"><strong><u>Secondary Heading</u></strong></h2>
               * Tertiary headings: <h3 style="color: rgb(52, 73, 94);"><strong><u>Tertiary Heading</u></strong></h3>
-            - Break down complex concepts into digestible parts
-            - Break long sentences into multiple short sentences
-            - Use bullet points (<ul> and <li>) for better readability
-            - Highlight key terms with <strong> tags
-            - Wrap main concepts of each sentence in <strong> tags
-            - Don't skip any information from the original content
-            - If there are comparisons or differences, create a table using <table>, <tbody>, <tr>, <td> tags
-            - Explain difficult terms in simpler language using brackets
-            - Use examples where they help clarify concepts
-            - Include all relevant details, dates, numbers, and specific information
+            - Use bullet points (<ul> and <li>) for better readability when listing items or steps
+            - Highlight key terms with <strong> tags 
+            - Create tables using <table>, <tbody>, <tr>, <td> tags for any comparative information
+            - Include relevant examples to illustrate difficult concepts
+            - Provide additional clarifications in brackets where helpful [like this]
+            - Maintain the same level of detail as the original text but make it easier to understand
             
-            Your output should be complete HTML that renders properly in a rich text editor.`
+            Your output should be complete, detailed HTML that preserves ALL the original content while making it more structured and easier to understand.`
           },
           {
             role: "user",
-            content: `Create professionally formatted notes from this PDF text, following all the formatting guidelines in your instructions: ${ocrText}`
+            content: `Create detailed, comprehensive, and easy-to-understand notes from this PDF text, following all the formatting guidelines in your instructions. DO NOT SKIP ANY INFORMATION: ${ocrText}`
           }
         ],
-        temperature: 0.3,
-        max_tokens: 4000
+        temperature: 0.2,
+        max_tokens: 8000
       })
     });
     
@@ -193,7 +195,8 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
       const pages = text.split('\n\n').filter(page => page.trim().startsWith('Page'));
       
       let formattedHtml = `
-        <h1 style="color: rgb(71, 0, 0);"><strong><u>Notes from PDF (API call failed - using fallback)</u></strong></h1>
+        <h1 style="color: rgb(71, 0, 0);"><strong><u>Complete Text from PDF (API call failed - using fallback)</u></strong></h1>
+        <p>Below is the complete text extracted from your PDF, with minimal formatting since the note generation service couldn't be reached.</p>
       `;
       
       // Process each page
@@ -207,18 +210,24 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
           <h2 style="color: rgb(26, 1, 157);"><strong><u>${pageTitle}</u></strong></h2>
         `;
         
-        // Process content - attempt to identify key concepts
-        const sentences = pageContent.split('. ').filter(s => s.trim().length > 0);
+        // Break content into paragraphs for better readability
+        const paragraphs = pageContent.split(/(?:\.|\?|\!)(?:\s+|\n)/g).filter(p => p.trim().length > 0);
         
-        formattedHtml += `<ul>`;
-        sentences.forEach(sentence => {
-          // Identify potential key terms with capitalized words or terms surrounded by special characters
-          const processed = sentence.replace(/\b([A-Z][a-z]+|[A-Z]{2,})\b/g, '<strong>$1</strong>')
-                                   .replace(/·([^·]+)/g, '• <strong>$1</strong>');
-                                   
-          formattedHtml += `<li>${processed}</li>`;
-        });
-        formattedHtml += `</ul>`;
+        if (paragraphs.length > 0) {
+          paragraphs.forEach(paragraph => {
+            if (paragraph.trim().length > 0) {
+              // Identify potential key terms with capitalized words
+              const processed = paragraph
+                .replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>')
+                .trim();
+                
+              formattedHtml += `<p>${processed}.</p>`;
+            }
+          });
+        } else {
+          // If no paragraphs were detected, just output the raw content
+          formattedHtml += `<p>${pageContent}</p>`;
+        }
       });
       
       return formattedHtml;

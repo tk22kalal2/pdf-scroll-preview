@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Document, pdfjs } from "react-pdf";
 import { toast } from "sonner";
@@ -144,7 +145,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     try {
       // Step 1: Perform OCR on the split PDF pages
       const ocrResult = await performOCR(file, splitPdfPages);
-      toast.loading("Generating notes from extracted text...");
+      toast.loading("Generating detailed notes from extracted text...");
 
       // Step 2: Send OCR text to Groq API to generate notes
       const notesResult = await generateNotesFromText(ocrResult.text);
@@ -152,7 +153,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       // Step 3: Display the generated notes in TinyMCE editor
       setNotes(notesResult.notes);
       setShowingNotes(true);
-      toast.success("Notes generated successfully");
+      toast.success("Detailed notes generated successfully");
     } catch (error) {
       console.error("Notes generation error:", error);
       toast.error("Failed to generate notes. Please try again.");
