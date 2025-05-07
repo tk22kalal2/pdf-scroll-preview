@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 interface PDFNotesProps {
@@ -13,6 +13,11 @@ interface PDFNotesProps {
 
 export const PDFNotes = ({ notes, isOpen, onClose }: PDFNotesProps) => {
   const [notesContent, setNotesContent] = useState(notes);
+  
+  // Update notes content when notes prop changes
+  useEffect(() => {
+    setNotesContent(notes);
+  }, [notes]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(notesContent)

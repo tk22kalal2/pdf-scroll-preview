@@ -16,6 +16,7 @@ interface PDFControlsProps {
 }
 
 export const PDFControls = ({ isLoading, numPages, onSplit, onDownload, onGenerateNotes, isSplit }: PDFControlsProps) => {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [startPage, setStartPage] = useState("");
   const [endPage, setEndPage] = useState("");
 
@@ -34,11 +35,12 @@ export const PDFControls = ({ isLoading, numPages, onSplit, onDownload, onGenera
     }
 
     onSplit(start, end);
+    setIsDialogOpen(false);
   };
 
   return (
     <div className="flex gap-2 p-4 border-b">
-      <Dialog>
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogTrigger asChild>
           <Button variant="outline" size="sm" disabled={isLoading}>
             <Split className="mr-2" />
