@@ -66,7 +66,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "mixtral-8x7b-32768",
+        model: "llama3-70b-8192", // Updated model that is supported
         messages: [
           {
             role: "system",
@@ -116,18 +116,43 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     console.error("Groq API Error:", error);
     toast.error("Failed to generate notes from text");
     
-    // Fallback to simple note generation with basic formatting if the API call fails
-    const lines = ocrText.split('\n');
-    const filteredLines = lines
-      .filter(line => line.trim().length > 10)
-      .map(line => `<li><strong>${line.trim().substring(0, 30)}</strong>${line.trim().substring(30)}</li>`);
+    // Create a better fallback with proper HTML formatting when API fails
+    const createFormattedNotes = (text: string) => {
+      // Extract pages
+      const pages = text.split('\n\n').filter(page => page.trim().startsWith('Page'));
+      
+      let formattedHtml = `
+        <h1 style="color: rgb(71, 0, 0);"><strong><u>Notes from PDF (API call failed - using fallback)</u></strong></h1>
+      `;
+      
+      // Process each page
+      pages.forEach(page => {
+        const pageLines = page.split('\n');
+        const pageTitle = pageLines[0].trim();
+        const pageContent = pageLines.slice(1).join(' ').trim();
+        
+        // Add page title as h2
+        formattedHtml += `
+          <h2 style="color: rgb(26, 1, 157);"><strong><u>${pageTitle}</u></strong></h2>
+        `;
+        
+        // Process content - attempt to identify key concepts
+        const sentences = pageContent.split('. ').filter(s => s.trim().length > 0);
+        
+        formattedHtml += `<ul>`;
+        sentences.forEach(sentence => {
+          // Identify potential key terms with capitalized words or terms surrounded by special characters
+          const processed = sentence.replace(/\b([A-Z][a-z]+|[A-Z]{2,})\b/g, '<strong>$1</strong>')
+                                   .replace(/·([^·]+)/g, '• <strong>$1</strong>');
+                                   
+          formattedHtml += `<li>${processed}</li>`;
+        });
+        formattedHtml += `</ul>`;
+      });
+      
+      return formattedHtml;
+    };
     
-    const fallbackNotes = `
-      <h1 style="color: rgb(71, 0, 0);"><strong><u>Notes from PDF (API call failed - using fallback)</u></strong></h1>
-      <ul>
-        ${filteredLines.join('\n')}
-      </ul>
-    `;
-    return { notes: fallbackNotes };
+    return { notes: createFormattedNotes(ocrText) };
   }
 };

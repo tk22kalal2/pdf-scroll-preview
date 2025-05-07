@@ -36,7 +36,7 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
   const handleDownloadHTML = () => {
     const content = editorRef.current?.getContent() || notes;
     const blob = new Blob([
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>PDF Notes</title></head><body>' +
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>PDF Notes</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:20px;max-width:800px;margin:0 auto;}h1{color:rgb(71,0,0);}h2{color:rgb(26,1,157);}h3{color:rgb(52,73,94);}ul{margin-left:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;}th{background-color:#f2f2f2;}</style></head><body>' +
       content +
       '</body></html>'
     ], { type: "text/html" });
@@ -78,6 +78,7 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
           init={{
             height: "100%",
             menubar: true,
+            readonly: false,
             plugins: [
               'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 
               'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
