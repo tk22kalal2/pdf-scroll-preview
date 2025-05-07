@@ -33,6 +33,24 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
     toast.success("Notes downloaded successfully");
   };
 
+  const handleDownloadHTML = () => {
+    const content = editorRef.current?.getContent() || notes;
+    const blob = new Blob([
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>PDF Notes</title></head><body>' +
+      content +
+      '</body></html>'
+    ], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `pdf_notes_${Date.now()}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("HTML notes downloaded successfully");
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg flex flex-col h-[85vh]">
       <div className="p-4 border-b flex justify-between items-center">
@@ -42,7 +60,10 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
             Copy
           </Button>
           <Button variant="outline" size="sm" onClick={handleDownload}>
-            Download
+            Download Text
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleDownloadHTML}>
+            Download HTML
           </Button>
           <Button variant="outline" size="sm" onClick={onReturn}>
             Return to PDF
@@ -65,8 +86,17 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
             toolbar: 'undo redo | blocks | ' +
               'bold italic forecolor | alignleft aligncenter ' +
               'alignright alignjustify | bullist numlist outdent indent | ' +
-              'removeformat | help',
-            content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
+              'removeformat | table | help',
+            content_style: `
+              body { font-family:Helvetica,Arial,sans-serif; font-size:14px }
+              h1 { color: rgb(71, 0, 0); }
+              h2 { color: rgb(26, 1, 157); }
+              h3 { color: rgb(52, 73, 94); }
+              table { border-collapse: collapse; width: 100%; }
+              th, td { border: 1px solid #ddd; padding: 8px; }
+              th { background-color: #f2f2f2; }
+              ul, ol { margin-left: 20px; }
+            `
           }}
         />
       </div>

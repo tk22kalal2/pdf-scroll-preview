@@ -66,19 +66,38 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",  // Changed to a model that exists on Groq
+        model: "mixtral-8x7b-32768",
         messages: [
           {
             role: "system",
-            content: "You are a helpful assistant that creates concise, organized notes from PDF text. Format your response with clear headings, bullet points, and numbered lists where appropriate."
+            content: `You are a professional note organizer that creates beautifully formatted, structured notes from PDF text. 
+            Your task is to reorganize and format the content following these guidelines:
+            
+            - Organize content logically with proper hierarchy, proper sequence and proper relationship between headings, sub-headings and concepts.
+            - Use clear section headings with proper HTML styling:
+              * Main headings: <h1 style="color: rgb(71, 0, 0);"><strong><u>Main Heading</u></strong></h1>
+              * Secondary headings: <h2 style="color: rgb(26, 1, 157);"><strong><u>Secondary Heading</u></strong></h2>
+              * Tertiary headings: <h3 style="color: rgb(52, 73, 94);"><strong><u>Tertiary Heading</u></strong></h3>
+            - Break down complex concepts into digestible parts
+            - Break long sentences into multiple short sentences
+            - Use bullet points (<ul> and <li>) for better readability
+            - Highlight key terms with <strong> tags
+            - Wrap main concepts of each sentence in <strong> tags
+            - Don't skip any information from the original content
+            - If there are comparisons or differences, create a table using <table>, <tbody>, <tr>, <td> tags
+            - Explain difficult terms in simpler language using brackets
+            - Use examples where they help clarify concepts
+            - Include all relevant details, dates, numbers, and specific information
+            
+            Your output should be complete HTML that renders properly in a rich text editor.`
           },
           {
             role: "user",
-            content: `Create organized, concise notes from this PDF text: ${ocrText}`
+            content: `Create professionally formatted notes from this PDF text, following all the formatting guidelines in your instructions: ${ocrText}`
           }
         ],
-        temperature: 0.5,
-        max_tokens: 2048
+        temperature: 0.3,
+        max_tokens: 4000
       })
     });
     
@@ -97,13 +116,18 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     console.error("Groq API Error:", error);
     toast.error("Failed to generate notes from text");
     
-    // Fallback to simple note generation if the API call fails
+    // Fallback to simple note generation with basic formatting if the API call fails
     const lines = ocrText.split('\n');
     const filteredLines = lines
       .filter(line => line.trim().length > 10)
-      .map(line => `• ${line.trim()}`);
+      .map(line => `<li><strong>${line.trim().substring(0, 30)}</strong>${line.trim().substring(30)}</li>`);
     
-    const fallbackNotes = `Notes from PDF (API call failed - using fallback):\n\n${filteredLines.join('\n')}`;
+    const fallbackNotes = `
+      <h1 style="color: rgb(71, 0, 0);"><strong><u>Notes from PDF (API call failed - using fallback)</u></strong></h1>
+      <ul>
+        ${filteredLines.join('\n')}
+      </ul>
+    `;
     return { notes: fallbackNotes };
   }
 };
