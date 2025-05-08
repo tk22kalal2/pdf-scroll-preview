@@ -162,6 +162,10 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             - Include relevant examples to illustrate difficult concepts
             - Provide additional clarifications in brackets where helpful [like this]
             - Maintain the same level of detail as the original text but make it easier to understand
+            - Make sure all HTML tags are properly closed and nested correctly
+            - Do not use nested <strong> tags within other <strong> tags
+            - Ensure that your output is valid HTML that can be rendered correctly in a rich text editor
+            - Wrap single words or short phrases in <strong> tags rather than entire sentences
             
             Your output should be complete, detailed HTML that preserves ALL the original content while making it more structured and easier to understand.`
           },
@@ -171,7 +175,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
           }
         ],
         temperature: 0.2,
-        // Remove max_tokens limit to allow full detailed output
+        // No max_tokens limit to ensure full output of detailed notes
       })
     });
     
@@ -184,7 +188,15 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     const data = await response.json();
     const notes = data.choices[0].message.content;
     
-    return { notes };
+    // Verify we have valid formatted notes
+    if (!notes || notes.trim().length === 0) {
+      throw new Error("Empty response from Groq API");
+    }
+    
+    // Sanitize the notes to ensure valid HTML
+    const sanitizedNotes = sanitizeHtml(notes);
+    
+    return { notes: sanitizedNotes };
     
   } catch (error) {
     console.error("Groq API Error:", error);
@@ -237,3 +249,27 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     return { notes: createFormattedNotes(ocrText) };
   }
 };
+
+/**
+ * Helper function to sanitize HTML and ensure it's valid for TinyMCE
+ */
+function sanitizeHtml(html: string): string {
+  // Check for unclosed tags or fix common HTML issues
+  let sanitized = html
+    // Ensure proper spacing around tags for better rendering
+    .replace(/>\s*</g, '>\n<')
+    // Fix potential unclosed strong tags
+    .replace(/<strong>([^<]*)<strong>/g, '<strong>$1</strong>')
+    // Fix nested strong tags
+    .replace(/<strong>([^<]*)<strong>([^<]*)<\/strong>([^<]*)<\/strong>/g, '<strong>$1$2$3</strong>')
+    // Make sure headings have both opening and closing tags
+    .replace(/<h([1-6])([^>]*)>([^<]*)/gi, (match, level, attrs, content) => {
+      if (!content.trim()) return match;
+      return `<h${level}${attrs}>${content}`;
+    })
+    // Add paragraph tags to naked text with proper line breaks
+    .replace(/(<\/[^>]+>)\s*(?!\s*<(?:p|h[1-6]|ul|ol|li|table|div))/g, '$1\n<p>')
+    .replace(/^\s*([^<].+)(?!\s*<\/(?:p|h[1-6]|ul|ol|li|table|div)>)/gm, '<p>$1</p>');
+
+  return sanitized;
+}

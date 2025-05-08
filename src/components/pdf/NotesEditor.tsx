@@ -56,12 +56,13 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
     toast.success("Complete HTML notes downloaded successfully");
   };
 
-  // Function to handle image upload
+  // Function to handle image upload directly from TinyMCE
   const imageUploadHandler = (blobInfo: any, progress: (percent: number) => void) => {
     return new Promise<string>((resolve, reject) => {
       try {
         const reader = new FileReader();
         reader.onload = (e) => {
+          progress(100);
           resolve(e.target?.result as string);
         };
         reader.onerror = () => {
@@ -107,26 +108,30 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
               'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
               'insertdatetime', 'media', 'table', 'preview', 'help', 'wordcount'
             ],
-            toolbar: 'undo redo | blocks | ' +
+            toolbar: 'undo redo | formatselect | ' +
               'bold italic forecolor | alignleft aligncenter ' +
               'alignright alignjustify | bullist numlist outdent indent | ' +
-              'removeformat | image | table | help',
+              'removeformat | image table link | help',
             content_style: `
-              body { font-family:Helvetica,Arial,sans-serif; font-size:14px }
-              h1 { color: rgb(71, 0, 0); }
-              h2 { color: rgb(26, 1, 157); }
-              h3 { color: rgb(52, 73, 94); }
-              table { border-collapse: collapse; width: 100%; }
-              th, td { border: 1px solid #ddd; padding: 8px; }
+              body { font-family:Helvetica,Arial,sans-serif; font-size:14px; line-height:1.6; }
+              h1 { color: rgb(71, 0, 0); font-size: 24px; margin-top: 20px; margin-bottom: 10px; }
+              h2 { color: rgb(26, 1, 157); font-size: 20px; margin-top: 18px; margin-bottom: 9px; }
+              h3 { color: rgb(52, 73, 94); font-size: 18px; margin-top: 16px; margin-bottom: 8px; }
+              p { margin-bottom: 1em; }
+              strong { font-weight: bold; }
+              u { text-decoration: underline; }
+              table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
               th { background-color: #f2f2f2; }
-              ul, ol { margin-left: 20px; }
+              ul, ol { margin-left: 20px; margin-bottom: 16px; }
+              img { max-width: 100%; height: auto; }
             `,
-            // Image upload settings
+            // Ensure we handle images properly
             images_upload_handler: imageUploadHandler,
             automatic_uploads: true,
             file_picker_types: 'image',
             file_picker_callback: function(callback, value, meta) {
-              // Provide image upload functionality
+              // Handle image selection from gallery
               if (meta.filetype === 'image') {
                 const input = document.createElement('input');
                 input.setAttribute('type', 'file');
@@ -146,7 +151,23 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
                 
                 input.click();
               }
-            }
+            },
+            // Ensure proper handling of HTML formatting
+            extended_valid_elements: "img[class|src|border=0|alt|title|hspace|vspace|width|height|align|onmouseover|onmouseout|name],h1[*],h2[*],h3[*],h4[*],h5[*],h6[*],strong[*],span[*],div[*],p[*],ul[*],ol[*],li[*],table[*],tr[*],td[*],th[*]",
+            formats: {
+              bold: { inline: 'strong' },
+              italic: { inline: 'em' }
+            },
+            entity_encoding: 'raw',
+            convert_urls: false,
+            valid_children: "+body[style],+body[link]",
+            // Prevent TinyMCE from removing any HTML elements
+            invalid_elements: '',
+            // Fix for content not displaying correctly
+            valid_elements: '*[*]',
+            force_br_newlines: false,
+            force_p_newlines: false,
+            forced_root_block: 'p'
           }}
         />
       </div>
