@@ -145,12 +145,13 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             Your task is to reorganize and format the content following these guidelines:
             
             - DO NOT SKIP ANY CONTENT OR INFORMATION from the original PDF text
-            - Create DETAILED notes rather than concise ones
             - Include ALL information from the original text, preserving all facts, numbers, terminology, and examples
             - Organize content logically with proper hierarchy, proper sequence and proper relationship between headings, sub-headings and concepts
             - Explain concepts in simple, easy-to-understand language while maintaining complete accuracy
             - Define technical terms or jargon when they first appear
             - Expand abbreviations and acronyms at first use
+            - Break down complex concepts into digestible parts
+            - Break long sentences into multiple short sentences
             - Wrap main concepts of each sentence in <strong> tags
             - Use clear section headings with proper HTML styling:
               * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Heading</span></span></h1>
