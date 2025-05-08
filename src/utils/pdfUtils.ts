@@ -222,12 +222,15 @@ Format your response as comprehensive academic notes that follow the exact struc
     
   } catch (error) {
     console.error('Notes generation error:', error);
-    // Fallback to simpler formatting if there's an error
+    // Return an error message that's properly formatted
+    const errorMessage = error instanceof Error ? error.message : String(error);
     const fallbackNotes = `
-      <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">PDF Notes</span></span></h1>
-      <p>Unfortunately, there was an error generating structured notes. Below is the raw extracted text:</p>
-      <p>${text.substring(0, 5000)}</p>
-      <p>Error details: ${error instanceof Error ? error.message : String(error)}</p>
+      <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">PDF Notes Error</span></span></h1>
+      <p>Unfortunately, there was an error generating structured notes: <strong>${errorMessage}</strong></p>
+      <p>Please try again or check the following:</p>
+      <ul><li>Ensure the PDF contains readable text</li></ul>
+      <ul><li>Try selecting a smaller section of the PDF</li></ul>
+      <ul><li>Check your internet connection</li></ul>
     `;
     
     return { notes: fallbackNotes };
