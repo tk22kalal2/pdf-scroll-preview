@@ -153,19 +153,19 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             - Expand abbreviations and acronyms at first use
             - Wrap main concepts of each sentence in <strong> tags
             - Use clear section headings with proper HTML styling:
-              * Main headings: <h1 style="color: rgb(71, 0, 0);"><strong><u>Main Heading</u></strong></h1>
-              * Secondary headings: <h2 style="color: rgb(26, 1, 157);"><strong><u>Secondary Heading</u></strong></h2>
-              * Tertiary headings: <h3 style="color: rgb(52, 73, 94);"><strong><u>Tertiary Heading</u></strong></h3>
-            - Use bullet points (<ul> and <li>) for better readability when listing items or steps
-            - Highlight key terms with <strong> tags 
+              * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Heading</span></span></h1>
+              * Secondary headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Secondary Heading</span></span></h2>
+              * Tertiary headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Tertiary Heading</span></span></h3>
+            - Use bullet points (<ul><li>) for listing items or steps
+            - Use ordered lists (<ol><li>) for sequential steps or numbered items
             - Create tables using <table>, <tbody>, <tr>, <td> tags for any comparative information
             - Include relevant examples to illustrate difficult concepts
             - Provide additional clarifications in brackets where helpful [like this]
             - Maintain the same level of detail as the original text but make it easier to understand
             - Make sure all HTML tags are properly closed and nested correctly
-            - Do not use nested <strong> tags within other <strong> tags
+            - Ensure line breaks after headings and list items for better readability
+            - Separate sentences with proper line breaks where it makes sense for readability
             - Ensure that your output is valid HTML that can be rendered correctly in a rich text editor
-            - Wrap single words or short phrases in <strong> tags rather than entire sentences
             
             Your output should be complete, detailed HTML that preserves ALL the original content while making it more structured and easier to understand.`
           },
@@ -208,7 +208,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
       const pages = text.split('\n\n').filter(page => page.trim().startsWith('Page'));
       
       let formattedHtml = `
-        <h1 style="color: rgb(71, 0, 0);"><strong><u>Complete Text from PDF (API call failed - using fallback)</u></strong></h1>
+        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete Text from PDF (API call failed - using fallback)</span></span></h1>
         <p>Below is the complete text extracted from your PDF, with minimal formatting since the note generation service couldn't be reached.</p>
       `;
       
@@ -220,7 +220,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         
         // Add page title as h2
         formattedHtml += `
-          <h2 style="color: rgb(26, 1, 157);"><strong><u>${pageTitle}</u></strong></h2>
+          <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">${pageTitle}</span></span></h2>
         `;
         
         // Break content into paragraphs for better readability
@@ -234,12 +234,12 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
                 .replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>')
                 .trim();
                 
-              formattedHtml += `<p>${processed}.</p>`;
+              formattedHtml += `<p>${processed}.</p>\n`;
             }
           });
         } else {
           // If no paragraphs were detected, just output the raw content
-          formattedHtml += `<p>${pageContent}</p>`;
+          formattedHtml += `<p>${pageContent}</p>\n`;
         }
       });
       
@@ -254,22 +254,56 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
  * Helper function to sanitize HTML and ensure it's valid for TinyMCE
  */
 function sanitizeHtml(html: string): string {
-  // Check for unclosed tags or fix common HTML issues
+  // Apply formatting similar to the provided template logic
   let sanitized = html
-    // Ensure proper spacing around tags for better rendering
-    .replace(/>\s*</g, '>\n<')
+    // Ensure proper line breaks after closing tags for better readability
+    .replace(/<\/(h[1-3])>/g, '</$1>\n\n')
+    .replace(/<\/(ul|ol)>/g, '</$1>\n')
+    
+    // Fix spacing issues and ensure proper paragraph breaks
+    .replace(/>\s+</g, '>\n<')
+    
+    // Fix nested lists by ensuring proper closing tags
+    .replace(/<\/li><li>/g, '</li>\n<li>')
+    .replace(/<\/li><\/ul>/g, '</li>\n</ul>')
+    .replace(/<\/li><\/ol>/g, '</li>\n</ol>')
+    
     // Fix potential unclosed strong tags
     .replace(/<strong>([^<]*)<strong>/g, '<strong>$1</strong>')
+    
     // Fix nested strong tags
     .replace(/<strong>([^<]*)<strong>([^<]*)<\/strong>([^<]*)<\/strong>/g, '<strong>$1$2$3</strong>')
+    
     // Make sure headings have both opening and closing tags
     .replace(/<h([1-6])([^>]*)>([^<]*)/gi, (match, level, attrs, content) => {
       if (!content.trim()) return match;
       return `<h${level}${attrs}>${content}`;
     })
-    // Add paragraph tags to naked text with proper line breaks
-    .replace(/(<\/[^>]+>)\s*(?!\s*<(?:p|h[1-6]|ul|ol|li|table|div))/g, '$1\n<p>')
-    .replace(/^\s*([^<].+)(?!\s*<\/(?:p|h[1-6]|ul|ol|li|table|div)>)/gm, '<p>$1</p>');
+    
+    // Clean up whitespace
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/ +/g, ' ')
+    
+    // Ensure each paragraph has proper spacing
+    .replace(/<p>/g, '\n<p>')
+    .replace(/<\/p>/g, '</p>\n')
+    
+    // Clean up bullet points for consistent formatting
+    .replace(/<ul><li>/g, '\n<ul>\n<li>')
+    .replace(/<\/li><\/ul>/g, '</li>\n</ul>\n')
+    
+    // Clean up ordered lists for consistent formatting
+    .replace(/<ol><li>/g, '\n<ol>\n<li>')
+    .replace(/<\/li><\/ol>/g, '</li>\n</ol>\n')
+    
+    // Ensure headings are properly formatted according to the template
+    .replace(/<h1>([^<]+)<\/h1>/g, '<h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">$1</span></span></h1>')
+    .replace(/<h2>([^<]+)<\/h2>/g, '<h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">$1</span></span></h2>')
+    .replace(/<h3>([^<]+)<\/h3>/g, '<h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">$1</span></span></h3>')
+    
+    // Fix any double-decorated headings
+    .replace(/<h([1-3])><span style="text-decoration: underline;"><span style="color: rgb\([^)]+\); text-decoration: underline;">(<span style="text-decoration: underline;"><span style="color: rgb\([^)]+\); text-decoration: underline;">[^<]+<\/span><\/span>)<\/span><\/span><\/h\1>/g, 
+             '<h$1>$2</h$1>');
 
   return sanitized;
 }
