@@ -137,7 +137,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Updated model that is supported
+        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
         messages: [
           {
             role: "system",
@@ -151,6 +151,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             - Explain concepts in simple, easy-to-understand language while maintaining complete accuracy
             - Define technical terms or jargon when they first appear
             - Expand abbreviations and acronyms at first use
+            - Wrap main concepts of each sentence in <strong> tags
             - Use clear section headings with proper HTML styling:
               * Main headings: <h1 style="color: rgb(71, 0, 0);"><strong><u>Main Heading</u></strong></h1>
               * Secondary headings: <h2 style="color: rgb(26, 1, 157);"><strong><u>Secondary Heading</u></strong></h2>
@@ -170,7 +171,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
           }
         ],
         temperature: 0.2,
-        max_tokens: 8000
+        // Remove max_tokens limit to allow full detailed output
       })
     });
     
@@ -216,7 +217,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         if (paragraphs.length > 0) {
           paragraphs.forEach(paragraph => {
             if (paragraph.trim().length > 0) {
-              // Identify potential key terms with capitalized words
+              // Identify potential key terms with capitalized words and wrap main concepts in strong tags
               const processed = paragraph
                 .replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>')
                 .trim();

@@ -56,6 +56,24 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
     toast.success("Complete HTML notes downloaded successfully");
   };
 
+  // Function to handle image upload
+  const imageUploadHandler = (blobInfo: any, progress: (percent: number) => void) => {
+    return new Promise<string>((resolve, reject) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          resolve(e.target?.result as string);
+        };
+        reader.onerror = () => {
+          reject('Failed to load image');
+        };
+        reader.readAsDataURL(blobInfo.blob());
+      } catch (error) {
+        reject('Image upload failed');
+      }
+    });
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg flex flex-col h-[85vh]">
       <div className="p-4 border-b flex justify-between items-center">
@@ -92,7 +110,7 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
             toolbar: 'undo redo | blocks | ' +
               'bold italic forecolor | alignleft aligncenter ' +
               'alignright alignjustify | bullist numlist outdent indent | ' +
-              'removeformat | table | help',
+              'removeformat | image | table | help',
             content_style: `
               body { font-family:Helvetica,Arial,sans-serif; font-size:14px }
               h1 { color: rgb(71, 0, 0); }
@@ -102,7 +120,33 @@ export const NotesEditor = ({ notes, onReturn }: NotesEditorProps) => {
               th, td { border: 1px solid #ddd; padding: 8px; }
               th { background-color: #f2f2f2; }
               ul, ol { margin-left: 20px; }
-            `
+            `,
+            // Image upload settings
+            images_upload_handler: imageUploadHandler,
+            automatic_uploads: true,
+            file_picker_types: 'image',
+            file_picker_callback: function(callback, value, meta) {
+              // Provide image upload functionality
+              if (meta.filetype === 'image') {
+                const input = document.createElement('input');
+                input.setAttribute('type', 'file');
+                input.setAttribute('accept', 'image/*');
+                
+                input.onchange = function() {
+                  if (input.files && input.files[0]) {
+                    const file = input.files[0];
+                    
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                      callback(e.target?.result as string, { title: file.name });
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                };
+                
+                input.click();
+              }
+            }
           }}
         />
       </div>
