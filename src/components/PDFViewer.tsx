@@ -28,6 +28,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
+  const [extractedText, setExtractedText] = useState("");
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [isProcessingNotes, setIsProcessingNotes] = useState(false);
   const [showingNotes, setShowingNotes] = useState(false);
@@ -145,6 +146,10 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     try {
       // Step 1: Perform OCR on the split PDF pages
       const ocrResult = await performOCR(file, splitPdfPages);
+      
+      // Store the extracted OCR text for the chatbot
+      setExtractedText(ocrResult.text);
+      
       toast.loading("Generating detailed notes from extracted text...");
 
       // Step 2: Send OCR text to Groq API to generate notes
@@ -180,7 +185,11 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       </div>
       
       {showingNotes ? (
-        <NotesEditor notes={notes} onReturn={handleReturnToPdf} />
+        <NotesEditor 
+          notes={notes} 
+          ocrText={extractedText}
+          onReturn={handleReturnToPdf} 
+        />
       ) : (
         <>
           <div 

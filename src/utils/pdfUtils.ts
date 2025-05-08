@@ -1,310 +1,235 @@
 
-import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
+import { toast } from 'sonner';
 
-export interface OcrResult {
-  text: string;
-}
-
-export interface NotesResult {
-  notes: string;
-}
-
-/**
- * Extracts images from PDF pages
- * @param pdf The loaded PDF document
- * @param pageNumber The page number to extract images from
- * @returns Array of image data URLs
- */
-const extractImagesFromPage = async (pdf: any, pageNumber: number): Promise<string[]> => {
-  const page = await pdf.getPage(pageNumber);
-  const operatorList = await page.getOperatorList();
-  const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better image quality
-  
-  const images: string[] = [];
-  
-  // Create a canvas to render the page
-  const canvas = document.createElement('canvas');
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
-  const ctx = canvas.getContext('2d');
-  
-  if (!ctx) return images;
-  
-  // Render the page to the canvas
-  await page.render({
-    canvasContext: ctx,
-    viewport: viewport
-  }).promise;
-  
-  // Get the image data URL for the full page
-  const imageDataUrl = canvas.toDataURL('image/png');
-  images.push(imageDataUrl);
-  
-  return images;
-}
-
-/**
- * Performs OCR on PDF pages using either PDF.js text extraction or Tesseract for image-based PDFs
- * @param file The PDF file
- * @param pageNumbers Array of page numbers to process
- * @returns The OCR result
- */
-export const performOCR = async (file: File, pageNumbers: number[]): Promise<OcrResult> => {
+export async function performOCR(file: File, pageNumbers: number[]): Promise<{ text: string, confidence: number }> {
   try {
-    // Import PDF.js
-    const pdfjs = await import('pdfjs-dist');
-    const pdfjsLib = pdfjs;
-    
+    if (!file || pageNumbers.length === 0) {
+      throw new Error('Invalid file or page numbers');
+    }
+
+    // Show toast message for OCR process
+    toast.loading(`Starting OCR extraction for ${pageNumbers.length} pages...`, {
+      id: 'ocr-process',
+    });
+
+    // Use PDF.js to render the specified pages to canvases
+    const pdfjsLib = await import('pdfjs-dist');
     pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
-    
-    // Load the PDF document
-    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+
+    const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
     
     let fullText = '';
-    let imageBasedPagesCount = 0;
-    
-    // Process each requested page
-    for (const pageNum of pageNumbers) {
-      if (pageNum > pdf.numPages || pageNum < 1) continue;
-      
-      // Try to extract text using PDF.js first (works for text-based PDFs)
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      let pageText = textContent.items.map((item: any) => item.str).join(' ');
-      
-      // If not enough text was extracted, fallback to Tesseract OCR
-      if (pageText.trim().length < 50) {
-        toast.loading(`Page ${pageNum} appears to be image-based, using advanced OCR...`);
-        imageBasedPagesCount++;
-        
-        // Extract images from the page
-        const images = await extractImagesFromPage(pdf, pageNum);
-        
-        // Process each image with Tesseract
-        for (const imageUrl of images) {
-          // Use Tesseract.js to perform OCR on the image
-          const result = await Tesseract.recognize(
-            imageUrl,
-            'eng',
-            {
-              logger: (m) => {
-                // Optional: Log progress to console
-                if (m.status === 'recognizing text') {
-                  console.log(`Recognizing text: ${Math.floor(m.progress * 100)}%`);
-                }
-              }
-            }
-          );
-          
-          // Add the recognized text
-          pageText += ' ' + result.data.text;
-        }
-      }
-      
-      fullText += `Page ${pageNum}:\n${pageText.trim()}\n\n`;
-    }
-    
-    if (imageBasedPagesCount > 0) {
-      toast.success(`Advanced OCR completed on ${imageBasedPagesCount} image-based pages`);
-    }
-    
-    console.log("OCR Text:", fullText);
-    return { text: fullText || "No text found in the PDF." };
-  } catch (error) {
-    console.error("OCR Error:", error);
-    toast.error("Failed to extract text from PDF");
-    throw error;
-  }
-};
+    let totalConfidence = 0;
+    let processedPages = 0;
 
-/**
- * Converts OCR text to notes using Groq API
- * @param ocrText The text from OCR
- * @returns The formatted notes
- */
-export const generateNotesFromText = async (ocrText: string): Promise<NotesResult> => {
-  try {
-    const GROQ_API_KEY = "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";
-    const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-    
-    console.log("Using Groq API to generate notes");
-    
-    const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
-        messages: [
-          {
-            role: "system",
-            content: `You are a professional note organizer that creates beautifully formatted, comprehensive notes from PDF text. 
-            Your task is to reorganize and format the content following these guidelines:
-            
-            - DO NOT SKIP ANY CONTENT OR INFORMATION from the original PDF text
-            - Include ALL information from the original text, preserving all facts, numbers, terminology, and examples
-            - Organize content logically with proper hierarchy, proper sequence and proper relationship between headings, sub-headings and concepts
-            - Explain concepts in simple, easy-to-understand language while maintaining complete accuracy
-            - Define technical terms or jargon when they first appear
-            - Expand abbreviations and acronyms at first use
-            - Break down complex concepts into digestible parts
-            - Break long sentences into multiple short sentences
-            - Wrap main concepts of each sentence in <strong> tags
-            - Use clear section headings with proper HTML styling:
-              * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Heading</span></span></h1>
-              * Secondary headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Secondary Heading</span></span></h2>
-              * Tertiary headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Tertiary Heading</span></span></h3>
-            - Use bullet points (<ul><li>) for listing items or steps
-            - Use ordered lists (<ol><li>) for sequential steps or numbered items
-            - Create tables using <table>, <tbody>, <tr>, <td> tags for any comparative information
-            - Include relevant examples to illustrate difficult concepts
-            - Provide additional clarifications in brackets where helpful [like this]
-            - Maintain the same level of detail as the original text but make it easier to understand
-            - Make sure all HTML tags are properly closed and nested correctly
-            - Ensure line breaks after headings and list items for better readability
-            - Separate sentences with proper line breaks where it makes sense for readability
-            - Ensure that your output is valid HTML that can be rendered correctly in a rich text editor
-            
-            Your output should be complete, detailed HTML that preserves ALL the original content while making it more structured and easier to understand.`
-          },
-          {
-            role: "user",
-            content: `Create detailed, comprehensive, and easy-to-understand notes from this PDF text, following all the formatting guidelines in your instructions. DO NOT SKIP ANY INFORMATION: ${ocrText}`
+    // Process each page
+    for (const pageNum of pageNumbers) {
+      if (pageNum < 1 || pageNum > pdf.numPages) continue;
+
+      // Update toast with progress
+      toast.loading(`OCR processing page ${pageNum} of ${pdf.numPages}...`, {
+        id: 'ocr-process',
+      });
+
+      // Render PDF page to canvas
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      
+      if (!context) {
+        throw new Error('Could not create canvas context');
+      }
+
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+
+      // Perform OCR on the rendered canvas
+      const { data } = await Tesseract.recognize(canvas, 'eng', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            toast.loading(`Page ${pageNum}: OCR ${Math.round(m.progress * 100)}% complete...`, {
+              id: 'ocr-process',
+            });
           }
-        ],
-        temperature: 0.2,
-        // No max_tokens limit to ensure full output of detailed notes
-      })
+        }
+      });
+
+      fullText += `\n\n== Page ${pageNum} ==\n\n${data.text}`;
+      totalConfidence += data.confidence;
+      processedPages++;
+    }
+
+    const averageConfidence = processedPages > 0 ? totalConfidence / processedPages : 0;
+    
+    toast.success(`OCR completed with ${Math.round(averageConfidence)}% average confidence`, {
+      id: 'ocr-process',
+    });
+
+    return { 
+      text: fullText.trim(), 
+      confidence: averageConfidence 
+    };
+  } catch (error) {
+    console.error('OCR error:', error);
+    toast.error('OCR extraction failed. Please try again.', {
+      id: 'ocr-process',
     });
     
+    throw new Error('OCR process failed: ' + (error instanceof Error ? error.message : String(error)));
+  }
+}
+
+// Function to format the Groq response with proper styling
+function formatGroqResponse(text: string) {
+  const lines = text.split('\n');
+  const result = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+
+    // Headings
+    if (/^### /.test(line)) {
+      result.push('<h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">' + line.slice(4) + '</span></span></h3>');
+    } else if (/^## /.test(line)) {
+      result.push('<h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">' + line.slice(3) + '</span></span></h2>');
+    } else if (/^# /.test(line)) {
+      result.push('<h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">' + line.slice(2) + '</span></span></h1>');
+
+    // Ordered list (1. Step)
+    } else if (/^\d+\.\s+/.test(line)) {
+      result.push('<ol><li>' + line.replace(/^\d+\.\s+/, '') + '</li></ol>');
+
+    // Third-level bullet (4+ spaces or tab)
+    } else if (/^(\s{4,}|\t{2,})[\-\+\*] /.test(line)) {
+      result.push('<ul><ul><ul><li>' + line.replace(/^(\s{4,}|\t{2,})[\-\+\*] /, '') + '</li></ul></ul></ul>');
+
+    // Second-level bullet (2+ spaces or 1 tab)
+    } else if (/^(\s{2}|\t)[\-\+\*] /.test(line)) {
+      result.push('<ul><ul><li>' + line.replace(/^(\s{2}|\t)[\-\+\*] /, '') + '</li></ul></ul>');
+
+    // First-level bullet
+    } else if (/^[\-\+\*] /.test(line)) {
+      result.push('<ul><li>' + line.slice(2) + '</li></ul>');
+
+    // Plain text
+    } else {
+      result.push(line);
+    }
+  }
+
+  return result.join('\n')
+    // Format bold
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    // Line spacing after tags
+    .replace(/<\/(h[1-3]|ul|ol)>/g, '</$1>\n')
+    // Sentence breaks
+    .replace(/([.!?])\s*(?=[A-Z])/g, '$1\n')
+    // Extra spacing cleanup
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/ +/g, ' ')
+    .trim() + '\n'.repeat(10);
+}
+
+// Function to sanitize HTML to prevent XSS and ensure consistency
+function sanitizeHtml(html: string): string {
+  // A simple sanitizer - for complex applications use DOMPurify
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/on\w+="[^"]*"/g, '') // Remove inline JS events
+    .replace(/javascript:/gi, '')
+    // Format common elements
+    .replace(/<(\/?)h1>/gi, '<$1h1>')
+    .replace(/<(\/?)h2>/gi, '<$1h2>')
+    .replace(/<(\/?)h3>/gi, '<$1h3>')
+    .replace(/<(\/?)p>/gi, '<$1p>')
+    .replace(/<(\/?)ul>/gi, '<$1ul>')
+    .replace(/<(\/?)ol>/gi, '<$1ol>')
+    .replace(/<(\/?)li>/gi, '<$1li>')
+    .replace(/<(\/?)strong>/gi, '<$1strong>')
+    // Add spacing for paragraphs
+    .replace(/<\/p><p>/g, '</p>\n<p>')
+    // Clean up any excessive newlines
+    .replace(/\n{3,}/g, '\n\n');
+}
+
+export async function generateNotesFromText(text: string): Promise<{ notes: string }> {
+  try {
+    // Prepare the prompt for Groq API
+    const prompt = `
+You are an AI that generates comprehensive, structured notes from OCR-extracted PDF text. Below is the raw OCR text:
+
+${text.substring(0, 15000)}
+
+Please thoroughly analyze this text and create detailed, well-formatted notes with the following:
+
+1. Use Markdown headings (# for main sections, ## for subsections, ### for minor sections)
+2. Use bullet points (-, +, or *) for listing related concepts
+3. Create ordered lists (1., 2., etc.) for sequential steps or processes
+4. Organize content logically by topic
+5. Wrap main concepts of each sentence in <strong> tags
+6. Highlight key terms, definitions, and important facts
+7. Include ALL important information without omissions
+8. Do not generate content not found in the source text
+9. Preserve the exact information content without summarizing or reducing detail
+
+Format your response as comprehensive academic notes that follow the exact structure and content of the source material.
+`;
+
+    // Send to Groq API
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer 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',
+      },
+      body: JSON.stringify({
+        model: 'llama3-8b-8192',
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.1,
+        // No max_tokens limit to allow for detailed notes
+      }),
+    });
+
     if (!response.ok) {
-      const errorData = await response.text();
-      console.error("Groq API error response:", errorData);
-      throw new Error(`Groq API error: ${response.status}`);
+      throw new Error(`API request failed with status ${response.status}`);
     }
-    
+
     const data = await response.json();
-    const notes = data.choices[0].message.content;
     
-    // Verify we have valid formatted notes
-    if (!notes || notes.trim().length === 0) {
-      throw new Error("Empty response from Groq API");
+    if (!data.choices || !data.choices[0] || !data.choices[0].message || !data.choices[0].message.content) {
+      throw new Error('Invalid response from API');
     }
     
-    // Sanitize the notes to ensure valid HTML
-    const sanitizedNotes = sanitizeHtml(notes);
+    // Get the generated notes from the API response
+    const generatedNotes = data.choices[0].message.content;
+    
+    // Format and clean the notes
+    const formattedNotes = formatGroqResponse(generatedNotes);
+    const sanitizedNotes = sanitizeHtml(formattedNotes);
     
     return { notes: sanitizedNotes };
     
   } catch (error) {
-    console.error("Groq API Error:", error);
-    toast.error("Failed to generate notes from text");
+    console.error('Notes generation error:', error);
+    // Fallback to simpler formatting if there's an error
+    const fallbackNotes = `
+      <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">PDF Notes</span></span></h1>
+      <p>Unfortunately, there was an error generating structured notes. Below is the raw extracted text:</p>
+      <p>${text.substring(0, 5000)}</p>
+      <p>Error details: ${error instanceof Error ? error.message : String(error)}</p>
+    `;
     
-    // Create a better fallback with proper HTML formatting when API fails
-    const createFormattedNotes = (text: string) => {
-      // Extract pages
-      const pages = text.split('\n\n').filter(page => page.trim().startsWith('Page'));
-      
-      let formattedHtml = `
-        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete Text from PDF (API call failed - using fallback)</span></span></h1>
-        <p>Below is the complete text extracted from your PDF, with minimal formatting since the note generation service couldn't be reached.</p>
-      `;
-      
-      // Process each page
-      pages.forEach(page => {
-        const pageLines = page.split('\n');
-        const pageTitle = pageLines[0].trim();
-        const pageContent = pageLines.slice(1).join(' ').trim();
-        
-        // Add page title as h2
-        formattedHtml += `
-          <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">${pageTitle}</span></span></h2>
-        `;
-        
-        // Break content into paragraphs for better readability
-        const paragraphs = pageContent.split(/(?:\.|\?|\!)(?:\s+|\n)/g).filter(p => p.trim().length > 0);
-        
-        if (paragraphs.length > 0) {
-          paragraphs.forEach(paragraph => {
-            if (paragraph.trim().length > 0) {
-              // Identify potential key terms with capitalized words and wrap main concepts in strong tags
-              const processed = paragraph
-                .replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>')
-                .trim();
-                
-              formattedHtml += `<p>${processed}.</p>\n`;
-            }
-          });
-        } else {
-          // If no paragraphs were detected, just output the raw content
-          formattedHtml += `<p>${pageContent}</p>\n`;
-        }
-      });
-      
-      return formattedHtml;
-    };
-    
-    return { notes: createFormattedNotes(ocrText) };
+    return { notes: fallbackNotes };
   }
-};
-
-/**
- * Helper function to sanitize HTML and ensure it's valid for TinyMCE
- */
-function sanitizeHtml(html: string): string {
-  // Apply formatting similar to the provided template logic
-  let sanitized = html
-    // Ensure proper line breaks after closing tags for better readability
-    .replace(/<\/(h[1-3])>/g, '</$1>\n\n')
-    .replace(/<\/(ul|ol)>/g, '</$1>\n')
-    
-    // Fix spacing issues and ensure proper paragraph breaks
-    .replace(/>\s+</g, '>\n<')
-    
-    // Fix nested lists by ensuring proper closing tags
-    .replace(/<\/li><li>/g, '</li>\n<li>')
-    .replace(/<\/li><\/ul>/g, '</li>\n</ul>')
-    .replace(/<\/li><\/ol>/g, '</li>\n</ol>')
-    
-    // Fix potential unclosed strong tags
-    .replace(/<strong>([^<]*)<strong>/g, '<strong>$1</strong>')
-    
-    // Fix nested strong tags
-    .replace(/<strong>([^<]*)<strong>([^<]*)<\/strong>([^<]*)<\/strong>/g, '<strong>$1$2$3</strong>')
-    
-    // Make sure headings have both opening and closing tags
-    .replace(/<h([1-6])([^>]*)>([^<]*)/gi, (match, level, attrs, content) => {
-      if (!content.trim()) return match;
-      return `<h${level}${attrs}>${content}`;
-    })
-    
-    // Clean up whitespace
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/ +/g, ' ')
-    
-    // Ensure each paragraph has proper spacing
-    .replace(/<p>/g, '\n<p>')
-    .replace(/<\/p>/g, '</p>\n')
-    
-    // Clean up bullet points for consistent formatting
-    .replace(/<ul><li>/g, '\n<ul>\n<li>')
-    .replace(/<\/li><\/ul>/g, '</li>\n</ul>\n')
-    
-    // Clean up ordered lists for consistent formatting
-    .replace(/<ol><li>/g, '\n<ol>\n<li>')
-    .replace(/<\/li><\/ol>/g, '</li>\n</ol>\n')
-    
-    // Ensure headings are properly formatted according to the template
-    .replace(/<h1>([^<]+)<\/h1>/g, '<h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">$1</span></span></h1>')
-    .replace(/<h2>([^<]+)<\/h2>/g, '<h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">$1</span></span></h2>')
-    .replace(/<h3>([^<]+)<\/h3>/g, '<h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">$1</span></span></h3>')
-    
-    // Fix any double-decorated headings
-    .replace(/<h([1-3])><span style="text-decoration: underline;"><span style="color: rgb\([^)]+\); text-decoration: underline;">(<span style="text-decoration: underline;"><span style="color: rgb\([^)]+\); text-decoration: underline;">[^<]+<\/span><\/span>)<\/span><\/span><\/h\1>/g, 
-             '<h$1>$2</h$1>');
-
-  return sanitized;
 }
