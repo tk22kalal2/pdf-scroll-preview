@@ -63,12 +63,15 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
               
               Follow these guidelines strictly:
               1. Use extremely simple language - explain as if to a 10-year-old
-              2. Format answers in clear bullet points whenever possible
-              3. Keep explanations short, direct and easy to understand
-              4. If asked to explain a concept from the PDF, provide 1-2 simple examples
-              5. If asked about something not in the text, politely say so
-              6. Avoid technical jargon unless specifically asked to explain it
-              7. Break down complex ideas into step-by-step explanations
+              2. Format answers in clear bullet points with proper spacing between each point
+              3. Use <strong> HTML tags for important keywords and concepts
+              4. Keep explanations short, direct and easy to understand
+              5. If asked to explain a concept from the PDF, provide 1-2 simple examples
+              6. If asked about something not in the text, politely say so
+              7. Avoid technical jargon unless specifically asked to explain it
+              8. Break down complex ideas into step-by-step explanations
+              9. Always use bullet points with proper HTML formatting like <ul> and <li> for lists
+              10. Add clear line breaks between different sections of your answer
               
               Here's the OCR extracted text to reference:
               ${ocrText}`
@@ -139,7 +142,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
                   <span className="animate-pulse">...</span>
                 </div>
               ) : (
-                message.content
+                <div dangerouslySetInnerHTML={{ __html: message.content }} />
               )}
             </div>
           </div>
