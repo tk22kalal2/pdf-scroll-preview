@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { MessageSquare } from "lucide-react";
+import { marked } from "marked";
 
 interface Message {
   role: "user" | "assistant";
