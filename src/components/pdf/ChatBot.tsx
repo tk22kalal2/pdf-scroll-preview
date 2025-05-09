@@ -142,7 +142,14 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
                   <span className="animate-pulse">...</span>
                 </div>
               ) : (
-                <div dangerouslySetInnerHTML={{ __html: message.content }} />
+                <div 
+                  className={`${
+                    message.role === 'assistant' 
+                      ? 'prose dark:prose-invert max-w-none' 
+                      : 'text-inherit'
+                  }`}
+                  dangerouslySetInnerHTML={{ __html: message.content }}
+                />
               )}
             </div>
           </div>
