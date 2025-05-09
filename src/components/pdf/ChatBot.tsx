@@ -148,7 +148,11 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
                       ? 'prose dark:prose-invert max-w-none' 
                       : 'text-inherit'
                   }`}
-                  dangerouslySetInnerHTML={{ __html: message.content }}
+                  dangerouslySetInnerHTML={{ 
+                    __html: message.role === 'assistant' 
+                      ? marked.parse(message.content) 
+                      : message.content 
+                  }}
                 />
               )}
             </div>
