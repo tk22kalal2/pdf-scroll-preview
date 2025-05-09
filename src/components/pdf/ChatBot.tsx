@@ -55,7 +55,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          model: "llama-3.3-70b-versatile",
           messages: [
             {
               role: "system",
