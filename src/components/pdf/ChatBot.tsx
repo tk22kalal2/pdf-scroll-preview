@@ -68,7 +68,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
               3. Use <strong> HTML tags for important keywords and concepts
               4. Keep explanations short, direct and easy to understand
               5. If asked to explain a concept from the PDF, provide 1-2 simple examples
-              6. If asked about something not in the text, politely say so
+              6. If asked about something not in the text, than use your own knowledge to explain
               7. Avoid technical jargon unless specifically asked to explain it
               8. Break down complex ideas into step-by-step explanations
               9. Always use bullet points with proper HTML formatting like <ul> and <li> for lists
