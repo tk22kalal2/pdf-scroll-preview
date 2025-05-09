@@ -46,7 +46,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
       const GROQ_API_KEY = "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";
       const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
       
-      // Prepare the request to Groq API
+      // Prepare the request to Groq API with improved prompt
       const response = await fetch(GROQ_API_URL, {
         method: 'POST',
         headers: {
@@ -58,11 +58,17 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
           messages: [
             {
               role: "system",
-              content: `You are a helpful assistant that answers questions about PDF content. 
-              You're given the OCR text extracted from a PDF document and need to answer questions about it.
-              Analyze the content thoroughly and provide accurate, point-wise answers.
-              Keep your answers direct, informative, and easy to understand.
-              If you can't find a relevant answer in the text, acknowledge that.
+              content: `You are a helpful assistant that answers questions about PDF content in the simplest language possible.
+              You're given OCR text extracted from a PDF document and need to answer questions about it.
+              
+              Follow these guidelines strictly:
+              1. Use extremely simple language - explain as if to a 10-year-old
+              2. Format answers in clear bullet points whenever possible
+              3. Keep explanations short, direct and easy to understand
+              4. If asked to explain a concept from the PDF, provide 1-2 simple examples
+              5. If asked about something not in the text, politely say so
+              6. Avoid technical jargon unless specifically asked to explain it
+              7. Break down complex ideas into step-by-step explanations
               
               Here's the OCR extracted text to reference:
               ${ocrText}`

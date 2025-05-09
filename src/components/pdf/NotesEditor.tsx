@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import { Editor } from "@tinymce/tinymce-react";
 import { Button } from "@/components/ui/button";
@@ -16,15 +17,17 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
   const [showChat, setShowChat] = useState(false);
 
   useEffect(() => {
-    // Inform user about detailed notes
-    toast.info("Displaying complete and detailed notes. No content has been omitted.");
+    // Inform user about detailed notes with auto-dismissal
+    toast.info("Displaying complete and detailed notes. No content has been omitted.", {
+      duration: 3000,
+    });
   }, []);
 
   const handleCopy = () => {
     const content = editorRef.current?.getContent() || notes;
     navigator.clipboard.writeText(content)
-      .then(() => toast.success("Complete notes copied to clipboard"))
-      .catch(() => toast.error("Failed to copy notes"));
+      .then(() => toast.success("Complete notes copied to clipboard", { duration: 2000 }))
+      .catch(() => toast.error("Failed to copy notes", { duration: 4000 }));
   };
 
   const handleDownload = () => {
@@ -38,7 +41,7 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast.success("Complete notes downloaded successfully");
+    toast.success("Complete notes downloaded successfully", { duration: 2000 });
   };
 
   const handleDownloadHTML = () => {
@@ -56,7 +59,7 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast.success("Complete HTML notes downloaded successfully");
+    toast.success("Complete HTML notes downloaded successfully", { duration: 2000 });
   };
 
   // Function to handle image upload directly from TinyMCE
