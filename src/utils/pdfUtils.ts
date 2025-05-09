@@ -87,6 +87,7 @@ export async function performOCR(file: File, pageNumbers: number[]): Promise<{ t
 
 // Function to format the Groq response with proper styling
 function formatGroqResponse(text: string) {
+  // Original formatting code restored
   const lines = text.split('\n');
   const result = [];
 
