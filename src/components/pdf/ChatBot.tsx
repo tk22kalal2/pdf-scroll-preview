@@ -39,50 +39,68 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
     setIsProcessing(true);
     
     try {
-      // Prepare context and prompt
-      const context = `The following is extracted text from a PDF document:\n\n${ocrText}\n\n`;
-      const prompt = `Based on the above document text, please answer the following question:\n${input}`;
-      
       // Display thinking message
       setMessages(prev => [...prev, { role: "assistant", content: "Thinking..." }]);
       
-      // Simulate AI response (in a real implementation, you'd call an API)
-      // This is where you would integrate with an actual API like OpenAI
-      setTimeout(() => {
-        // For demo purposes, generate a simple response based on the question
-        let response = "I couldn't find specific information about that in the document.";
-        
-        // Very basic keyword matching (would be replaced by real AI in production)
-        const question = input.toLowerCase();
-        if (ocrText.toLowerCase().includes(question)) {
-          // Find sentences containing keywords from the question
-          const sentences = ocrText.split(/[.!?]+/).filter(s => 
-            s.toLowerCase().includes(question)
-          );
-          
-          if (sentences.length > 0) {
-            response = `Based on the document: ${sentences[0].trim()}.`;
-            if (sentences.length > 1) {
-              response += ` Also, ${sentences[1].trim()}.`;
+      // Get the Groq API key from the existing code
+      const GROQ_API_KEY = "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";
+      const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+      
+      // Prepare the request to Groq API
+      const response = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-4-scout-17b-16e-instruct",
+          messages: [
+            {
+              role: "system",
+              content: `You are a helpful assistant that answers questions about PDF content. 
+              You're given the OCR text extracted from a PDF document and need to answer questions about it.
+              Analyze the content thoroughly and provide accurate, point-wise answers.
+              Keep your answers direct, informative, and easy to understand.
+              If you can't find a relevant answer in the text, acknowledge that.
+              
+              Here's the OCR extracted text to reference:
+              ${ocrText}`
+            },
+            ...messages.filter(m => m.role !== "assistant" || m.content !== "Thinking..."),
+            {
+              role: "user",
+              content: input.trim()
             }
-          }
-        }
-        
-        // Remove the "thinking" message
-        setMessages(prev => prev.slice(0, prev.length - 1));
-        
-        // Add the real response
-        setMessages(prev => [...prev, { role: "assistant", content: response }]);
-        setIsProcessing(false);
-      }, 1500);
+          ],
+          temperature: 0.2, // Lower temperature for more focused answers
+          max_tokens: 1000  // Allow for detailed responses
+        })
+      });
+      
+      // Remove the "thinking" message
+      setMessages(prev => prev.filter(m => m.content !== "Thinking..."));
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("Groq API error:", errorData);
+        throw new Error(`Groq API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content;
+      
+      // Add the AI response
+      setMessages(prev => [...prev, { role: "assistant", content: aiResponse }]);
       
     } catch (error) {
       console.error("Error generating response:", error);
       // Remove the "thinking" message
-      setMessages(prev => prev.slice(0, prev.length - 1));
+      setMessages(prev => prev.filter(m => m.content !== "Thinking..."));
       // Add error message
       setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I encountered an error while processing your question. Please try again." }]);
       toast.error("Failed to generate response");
+    } finally {
       setIsProcessing(false);
     }
   };
