@@ -28,7 +28,6 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
-  const [extractedText, setExtractedText] = useState("");
   const [isNotesOpen, setIsNotesOpen] = useState(false);
   const [isProcessingNotes, setIsProcessingNotes] = useState(false);
   const [showingNotes, setShowingNotes] = useState(false);
@@ -141,16 +140,12 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     }
 
     setIsProcessingNotes(true);
-    toast.loading("Extracting text from PDF...", { id: "ocr-process" });
+    toast.loading("Extracting text from PDF...");
 
     try {
       // Step 1: Perform OCR on the split PDF pages
       const ocrResult = await performOCR(file, splitPdfPages);
-      
-      // Store the extracted OCR text for the chatbot
-      setExtractedText(ocrResult.text);
-      
-      toast.loading("Generating detailed notes from extracted text...", { id: "notes-process" });
+      toast.loading("Generating detailed notes from extracted text...");
 
       // Step 2: Send OCR text to Groq API to generate notes
       const notesResult = await generateNotesFromText(ocrResult.text);
@@ -158,25 +153,12 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       // Step 3: Display the generated notes in TinyMCE editor
       setNotes(notesResult.notes);
       setShowingNotes(true);
-      
-      toast.success("Detailed notes generated successfully", { 
-        id: "notes-process",
-        description: "You can now edit and interact with the notes"
-      });
+      toast.success("Detailed notes generated successfully");
     } catch (error) {
       console.error("Notes generation error:", error);
-      toast.error("Failed to generate notes. Please try again.", { id: "notes-process" });
-      
-      // Set a basic error message for notes
-      setNotes(`
-        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Error Generating Notes</span></span></h1>
-        <p>There was an error processing your PDF. Please try again or select a different section.</p>
-        <p>Error details: ${error instanceof Error ? error.message : String(error)}</p>
-      `);
-      setShowingNotes(true);
+      toast.error("Failed to generate notes. Please try again.");
     } finally {
       setIsProcessingNotes(false);
-      toast.dismiss("ocr-process");
     }
   };
   
@@ -198,11 +180,7 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
       </div>
       
       {showingNotes ? (
-        <NotesEditor 
-          notes={notes} 
-          ocrText={extractedText}
-          onReturn={handleReturnToPdf} 
-        />
+        <NotesEditor notes={notes} onReturn={handleReturnToPdf} />
       ) : (
         <>
           <div 
