@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
 
@@ -141,13 +140,18 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         messages: [
           {
             role: "system",
-            content: `You are a professional note organizer that creates beautifully formatted, comprehensive notes from PDF text. 
-            Your task is to reorganize and format the content following these guidelines:
+            content: `You are a professional note organizer that MUST create complete, comprehensive notes from PDF text WITHOUT OMITTING ANY INFORMATION.
             
-            - DO NOT SKIP ANY CONTENT OR INFORMATION from the original PDF text
-            - Include ALL information from the original text, preserving all facts, numbers, terminology, and examples
-            - Organize content logically with proper hierarchy, proper sequence and proper relationship between headings, sub-headings and concepts
-            - Explain concepts in simple, easy-to-understand language while maintaining complete accuracy
+            This is ABSOLUTELY CRITICAL: YOUR PRIMARY ROLE IS TO ENSURE 100% OF THE ORIGINAL TEXT CONTENT IS PRESERVED IN THE NOTES.
+            
+            Follow these essential guidelines:
+            
+            - !!!CRITICAL!!! INCLUDE ABSOLUTELY ALL INFORMATION from the original PDF text - DO NOT OMIT ANYTHING
+            - You must preserve every fact, number, terminology, example, and detail from the original text
+            - If unsure about something, include it anyway - better to include everything than miss important information
+            - Organize content logically with proper hierarchy and relationships between concepts
+            - Use proper HTML formatting to make the content readable but NEVER at the expense of completeness
+            - Explain concepts in simple language while maintaining 100% accuracy and completeness
             - Define technical terms or jargon when they first appear
             - Expand abbreviations and acronyms at first use
             - Break down complex concepts into digestible parts
@@ -160,23 +164,20 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             - Use bullet points (<ul><li>) for listing items or steps
             - Use ordered lists (<ol><li>) for sequential steps or numbered items
             - Create tables using <table>, <tbody>, <tr>, <td> tags for any comparative information
-            - Include relevant examples to illustrate difficult concepts
-            - Provide additional clarifications in brackets where helpful [like this]
-            - Maintain the same level of detail as the original text but make it easier to understand
+            - Include all examples from the original text
             - Make sure all HTML tags are properly closed and nested correctly
             - Ensure line breaks after headings and list items for better readability
-            - Separate sentences with proper line breaks where it makes sense for readability
-            - Ensure that your output is valid HTML that can be rendered correctly in a rich text editor
+            - Separate sections with proper spacing for better visual organization
             
-            Your output should be complete, detailed HTML that preserves ALL the original content while making it more structured and easier to understand.`
+            REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized and formatted but NEVER abbreviated or summarized in a way that loses ANY information.`
           },
           {
             role: "user",
-            content: `Create detailed, comprehensive, and easy-to-understand notes from this PDF text, following all the formatting guidelines in your instructions. DO NOT SKIP ANY INFORMATION: ${ocrText}`
+            content: `Create detailed, comprehensive notes from this PDF text, following ALL formatting guidelines in your instructions. DO NOT SKIP OR OMIT ANY INFORMATION - I need 100% of the content preserved: ${ocrText}`
           }
         ],
-        temperature: 0.2,
-        // No max_tokens limit to ensure full output of detailed notes
+        temperature: 0.1, // Lower temperature for more precise output
+        max_tokens: 4000,  // Increased token limit to ensure complete coverage
       })
     });
     
@@ -194,6 +195,16 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
       throw new Error("Empty response from Groq API");
     }
     
+    // Check if the notes are significantly shorter than the OCR text (potential content loss)
+    if (notes.length < ocrText.length * 0.7) {
+      console.warn("Warning: Generated notes appear to be significantly shorter than the source text");
+      // Still proceed, but with a warning
+      toast.warning("Notes may not contain all information from the PDF. Consider reviewing the original text.", {
+        duration: 5000,
+        position: "top-right"
+      });
+    }
+    
     // Sanitize the notes to ensure valid HTML
     const sanitizedNotes = sanitizeHtml(notes);
     
@@ -201,22 +212,40 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     
   } catch (error) {
     console.error("Groq API Error:", error);
-    toast.error("Failed to generate notes from text");
+    toast.error("Failed to generate complete notes. Falling back to raw OCR text formatting.", {
+      duration: 5000,
+      position: "top-right"
+    });
     
-    // Create a better fallback with proper HTML formatting when API fails
+    // Create a better fallback that preserves ALL original text
     const createFormattedNotes = (text: string) => {
-      // Extract pages
-      const pages = text.split('\n\n').filter(page => page.trim().startsWith('Page'));
-      
+      // Start with a header explaining this is fallback formatting
       let formattedHtml = `
-        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete Text from PDF (API call failed - using fallback)</span></span></h1>
-        <p>Below is the complete text extracted from your PDF, with minimal formatting since the note generation service couldn't be reached.</p>
+        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete PDF Content (API Processing Failed)</span></span></h1>
+        <p>Below is the <strong>complete text</strong> extracted from your PDF with minimal formatting.</p>
       `;
       
-      // Process each page
+      // Extract pages and preserve ALL content
+      const pages = text.split('\n\n').filter(page => page.trim().startsWith('Page'));
+      
+      // If no pages were found, just format the entire text
+      if (pages.length === 0) {
+        const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
+        
+        paragraphs.forEach(paragraph => {
+          if (paragraph.trim().length > 0) {
+            formattedHtml += `<p>${paragraph.trim()}</p>\n`;
+          }
+        });
+        
+        return formattedHtml;
+      }
+      
+      // Process each page to preserve ALL content
       pages.forEach(page => {
         const pageLines = page.split('\n');
         const pageTitle = pageLines[0].trim();
+        // Join all remaining lines to ensure no content is lost
         const pageContent = pageLines.slice(1).join(' ').trim();
         
         // Add page title as h2
@@ -224,22 +253,25 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
           <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">${pageTitle}</span></span></h2>
         `;
         
-        // Break content into paragraphs for better readability
-        const paragraphs = pageContent.split(/(?:\.|\?|\!)(?:\s+|\n)/g).filter(p => p.trim().length > 0);
+        // Preserve ALL content by creating paragraphs at natural break points
+        // This ensures no content is skipped or lost
+        const paragraphs = pageContent.split(/(?:\.|\?|\!)(?:\s+|\n)/g)
+          .filter(p => p.trim().length > 0)
+          .map(p => p.trim() + '.');
         
         if (paragraphs.length > 0) {
           paragraphs.forEach(paragraph => {
             if (paragraph.trim().length > 0) {
-              // Identify potential key terms with capitalized words and wrap main concepts in strong tags
+              // Highlight potential key terms
               const processed = paragraph
                 .replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>')
                 .trim();
                 
-              formattedHtml += `<p>${processed}.</p>\n`;
+              formattedHtml += `<p>${processed}</p>\n`;
             }
           });
         } else {
-          // If no paragraphs were detected, just output the raw content
+          // If no paragraphs were detected, preserve the raw content to ensure nothing is lost
           formattedHtml += `<p>${pageContent}</p>\n`;
         }
       });

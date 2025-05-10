@@ -39,8 +39,8 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
     setInput("");
     setIsProcessing(true);
     
-    // Keep track of toast ID to ensure we can dismiss it
-    let loadingToastId: string | number;
+    // Variable to hold toast ID for dismissal
+    let loadingToastId: string | number = "";
     
     try {
       // Display thinking message
@@ -49,6 +49,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
       // Show loading toast with auto-dismiss
       loadingToastId = toast.loading("Processing your question...", {
         duration: 10000, // Maximum duration if not manually dismissed
+        position: "top-right"
       });
       
       // Get the Groq API key from the existing code
@@ -70,21 +71,25 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
               content: `You are a helpful assistant that answers questions about PDF content in the ABSOLUTE SIMPLEST language possible.
               You are given OCR text extracted from a PDF document and must answer questions related to it — whether they are directly in the text or not.
               
+              IMPORTANT: Your answers must be COMPLETE and include ALL relevant information from the PDF text.
+              
               Follow these strict guidelines:
               
               1. Use EXTREMELY simple language — explain as if to a 7-year-old
               2. Format answers EXCLUSIVELY in bullet points with proper spacing between each point
               3. Every bullet point MUST be separated by one line break for readability
               4. Use <strong> HTML tags for important keywords, concepts and definitions
-              5. Keep explanations short, direct and extremely easy to understand
+              5. Keep explanations complete — do not leave out ANY important details
               6. If asked to explain any concept, give 1-2 very simple examples
-              7. If the answer is not in the text, use your own knowledge to help
+              7. If the answer is not in the text, use your own knowledge to help but mention this fact
               8. ALWAYS add helpful examples or real-life applications
               9. NEVER use technical or medical jargon - explain everything in simple terms
               10. ALWAYS format using HTML <ul><li> for bullet points with proper spacing
               11. Add clear line breaks between different parts of your answer
               12. If asked, create simple tables, comparisons, or explanations using HTML formatting
               13. Always be helpful and supportive
+              14. NEVER skip any relevant information from the PDF text in your answer
+              15. If the information is complex, break it down into multiple simple points
               
               Here's the OCR extracted text for reference:
               ${ocrText}`
@@ -96,7 +101,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
             }
           ],
           temperature: 0.2, // Lower temperature for more focused answers
-          max_tokens: 1000  // Allow for detailed responses
+          max_tokens: 1500  // Allow for detailed responses
         })
       });
       
@@ -131,7 +136,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
       if (loadingToastId) {
         toast.dismiss(loadingToastId);
       }
-      toast.error("Failed to generate response", { duration: 3000 });
+      toast.error("Failed to generate response", { duration: 3000, position: "top-right" });
     } finally {
       setIsProcessing(false);
     }
@@ -202,4 +207,3 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
     </div>
   );
 };
-
