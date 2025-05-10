@@ -142,7 +142,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             role: "system",
             content: `You are a professional note organizer that MUST create complete, easy to understand and comprehensive notes from PDF text WITHOUT OMITTING ANY INFORMATION.
             
-            This is ABSOLUTELY CRITICAL: YOUR PRIMARY ROLE IS TO ENSURE 100% OF THE ORIGINAL TEXT CONTENT IS PRESERVED IN THE NOTES.
+            This is ABSOLUTELY CRITICAL: YOUR PRIMARY ROLE IS TO ENSURE 100% OF THE INFORMATIONAL CONTENT IS PRESERVED IN THE NOTES.
             
             Follow these essential guidelines:
             
@@ -170,14 +170,14 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             - Ensure line breaks after headings and list items for better readability
             - Separate sections with proper spacing for better visual organization
             
-            REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized and formatted but NEVER abbreviated or summarized in a way that loses ANY information.`
+            REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized ,summarized and formatted as easy to understand the concept.`
           },
           {
             role: "user",
-            content: `Create detailed, comprehensive notes from this PDF text, following ALL formatting guidelines in your instructions. DO NOT SKIP OR OMIT ANY INFORMATION - I need 100% of the content preserved: ${ocrText}`
+            content: `Create detailed, comprehensive and easy to understand notes from this PDF text, following ALL formatting guidelines in your instructions. DO NOT SKIP OR OMIT ANY INFORMATION - I need 100% of the content preserved: ${ocrText}`
           }
         ],
-        temperature: 0.5, // Lower temperature for more precise output
+        temperature: 0.8, // Lower temperature for more precise output
         max_tokens: 4000,  // Increased token limit to ensure complete coverage
       })
     });
