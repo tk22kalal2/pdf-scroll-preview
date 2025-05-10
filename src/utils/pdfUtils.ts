@@ -151,12 +151,12 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             - If unsure about something, include it anyway - better to include everything than miss important information
             - Organize content logically with proper hierarchy and relationships between concepts
             - Use proper HTML formatting to make the content readable but NEVER at the expense of completeness
-            - Explain concepts in simple language while maintaining 100% accuracy and completeness
-            - Explain in easiest language as a 10th class student can also understand
-            - Define technical terms or jargon when they first appear
+            - Explain each and every concepts in simple language as a 7th class student can also understand
+            - Explain in easiest language adding required  introduction ,concepts and examples
+            - Define technical terms or jargon 
             - Expand abbreviations and acronyms at first use
             - Break down complex concepts into digestible parts
-            - Break long sentences into multiple short sentences
+            - Break long sentences into multiple short sentences for better understablity
             - Wrap main concepts of each sentence in <strong> tags
             - Use clear section headings with proper HTML styling:
               * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Heading</span></span></h1>
@@ -178,7 +178,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
           }
         ],
         temperature: 0.8, // Lower temperature for more precise output
-        max_tokens: 4000,  // Increased token limit to ensure complete coverage
+        max_tokens: 10000,  // Increased token limit to ensure complete coverage
       })
     });
     
