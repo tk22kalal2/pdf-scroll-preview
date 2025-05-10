@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -39,9 +38,17 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
     setInput("");
     setIsProcessing(true);
     
+    // Keep track of toast ID to ensure we can dismiss it
+    let loadingToastId: string | undefined;
+    
     try {
       // Display thinking message
       setMessages(prev => [...prev, { role: "assistant", content: "Thinking..." }]);
+      
+      // Show loading toast with auto-dismiss
+      loadingToastId = toast.loading("Processing your question...", {
+        duration: 10000, // Maximum duration if not manually dismissed
+      }).id;
       
       // Get the Groq API key from the existing code
       const GROQ_API_KEY = "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";
@@ -59,26 +66,26 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
           messages: [
             {
               role: "system",
-              content: `You are a helpful assistant that answers questions about PDF content in the simplest language possible.
+              content: `You are a helpful assistant that answers questions about PDF content in the ABSOLUTE SIMPLEST language possible.
               You are given OCR text extracted from a PDF document and must answer questions related to it — whether they are directly in the text or not.
               
               Follow these strict guidelines:
               
-              1. Use extremely simple language — explain as if to a 10-year-old
-              2. Format answers in clear bullet points with proper spacing
-              3. Use <strong> HTML tags for important keywords and concepts
-              4. Keep explanations short, direct and very easy to understand
-              5. If asked to explain any concept from the text, give 1–2 easy examples
-              6. If the answer is not directly in the text, use your own medical knowledge to help the user
-              7. You can also add extra helpful information, examples, or real-life scenarios
-              8. Avoid technical or medical jargon unless the user asks for it
-              9. Break down complex ideas step-by-step in a simple way
-              10. Always format using HTML <ul><li> for bullet points
+              1. Use EXTREMELY simple language — explain as if to a 7-year-old
+              2. Format answers EXCLUSIVELY in bullet points with proper spacing between each point
+              3. Every bullet point MUST be separated by one line break for readability
+              4. Use <strong> HTML tags for important keywords, concepts and definitions
+              5. Keep explanations short, direct and extremely easy to understand
+              6. If asked to explain any concept, give 1-2 very simple examples
+              7. If the answer is not in the text, use your own knowledge to help
+              8. ALWAYS add helpful examples or real-life applications
+              9. NEVER use technical or medical jargon - explain everything in simple terms
+              10. ALWAYS format using HTML <ul><li> for bullet points with proper spacing
               11. Add clear line breaks between different parts of your answer
-              12. If asked, create tables, comparisons, MCQs, symptoms, diagnosis, treatment, clinical scenarios, or conclusions — use your knowledge even if it's not in the text
-              13. Always be helpful and supportive — the user may be preparing for exams
+              12. If asked, create simple tables, comparisons, or explanations using HTML formatting
+              13. Always be helpful and supportive
               
-              Here’s the OCR extracted text for reference:
+              Here's the OCR extracted text for reference:
               ${ocrText}`
             },
             ...messages.filter(m => m.role !== "assistant" || m.content !== "Thinking..."),
@@ -91,6 +98,11 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
           max_tokens: 1000  // Allow for detailed responses
         })
       });
+      
+      // Always dismiss the loading toast regardless of outcome
+      if (loadingToastId) {
+        toast.dismiss(loadingToastId);
+      }
       
       // Remove the "thinking" message
       setMessages(prev => prev.filter(m => m.content !== "Thinking..."));
@@ -113,7 +125,12 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
       setMessages(prev => prev.filter(m => m.content !== "Thinking..."));
       // Add error message
       setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I encountered an error while processing your question. Please try again." }]);
-      toast.error("Failed to generate response");
+      
+      // Dismiss any previous toast and show error
+      if (loadingToastId) {
+        toast.dismiss(loadingToastId);
+      }
+      toast.error("Failed to generate response", { duration: 3000 });
     } finally {
       setIsProcessing(false);
     }
@@ -150,7 +167,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
                 <div 
                   className={`${
                     message.role === 'assistant' 
-                      ? 'prose dark:prose-invert max-w-none' 
+                      ? 'prose prose-headings:my-2 prose-p:my-2 prose-ul:my-2 prose-li:my-1 dark:prose-invert max-w-none' 
                       : 'text-inherit'
                   }`}
                   dangerouslySetInnerHTML={{ 
