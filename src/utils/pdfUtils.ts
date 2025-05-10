@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
 
@@ -130,201 +129,91 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     
     console.log("Using Groq API to generate notes");
     
-    // Show informative toast about the process
-    toast.loading("Creating notes with easy-to-understand explanations while preserving 100% of content...", {
-      duration: 10000,
-      position: "top-right"
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
+        messages: [
+          {
+            role: "system",
+            content: `You are a professional note organizer that MUST create complete, easy to understand and comprehensive notes from PDF text WITHOUT OMITTING ANY INFORMATION.
+            
+            This is ABSOLUTELY CRITICAL: YOUR PRIMARY ROLE IS TO ENSURE 100% OF THE INFORMATIONAL CONTENT IS PRESERVED IN THE NOTES.
+            
+            Follow these essential guidelines:
+            
+            - !!!CRITICAL!!! INCLUDE ABSOLUTELY ALL INFORMATION from the original PDF text - DO NOT OMIT ANYTHING
+            - You must preserve every fact, number, terminology, example, and detail from the original text
+            - If unsure about something, include it anyway - better to include everything than miss important information
+            - Organize content logically with proper hierarchy and relationships between concepts
+            - Use proper HTML formatting to make the content readable but NEVER at the expense of completeness
+            - Explain concepts in simple language while maintaining 100% accuracy and completeness
+            - Explain in easiest language as a 10th class student can also understand
+            - Define technical terms or jargon when they first appear
+            - Expand abbreviations and acronyms at first use
+            - Break down complex concepts into digestible parts
+            - Break long sentences into multiple short sentences
+            - Wrap main concepts of each sentence in <strong> tags
+            - Use clear section headings with proper HTML styling:
+              * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Heading</span></span></h1>
+              * Secondary headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Secondary Heading</span></span></h2>
+              * Tertiary headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Tertiary Heading</span></span></h3>
+            - Use bullet points (<ul><li>) for listing items or steps
+            - Use ordered lists (<ol><li>) for sequential steps or numbered items
+            - Create tables using <table>, <tbody>, <tr>, <td> tags for any comparative information
+            - Include all examples from the original text
+            - Make sure all HTML tags are properly closed and nested correctly
+            - Ensure line breaks after headings and list items for better readability
+            - Separate sections with proper spacing for better visual organization
+            
+            REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized ,summarized and formatted as easy to understand the concept.`
+          },
+          {
+            role: "user",
+            content: `Create detailed, comprehensive and easy to understand notes from this PDF text, following ALL formatting guidelines in your instructions. DO NOT SKIP OR OMIT ANY INFORMATION - I need 100% of the content preserved: ${ocrText}`
+          }
+        ],
+        temperature: 0.8, // Lower temperature for more precise output
+        max_tokens: 4000,  // Increased token limit to ensure complete coverage
+      })
     });
     
-    // Create a more robust request with proper error handling
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2-minute timeout
-    
-    try {
-      const response = await fetch(GROQ_API_URL, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${GROQ_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
-          messages: [
-            {
-              role: "system",
-              content: `You are a professional educator and note organizer that MUST create BOTH complete AND easy-to-understand notes from PDF text.
-
-YOUR PRIMARY RESPONSIBILITIES ARE:
-1. PRESERVE 100% OF THE INFORMATIONAL CONTENT from the original PDF
-2. EXPLAIN everything in the SIMPLEST possible language with proper context
-
-Follow these critical guidelines:
-
-CONTENT PRESERVATION:
-- INCLUDE ABSOLUTELY ALL INFORMATION from the original PDF text - DO NOT OMIT ANYTHING
-- Preserve every fact, number, terminology, example, and detail from the original text
-- If unsure about something, include it anyway - better to include everything than miss important information
-
-MAKING CONTENT EASIER TO UNDERSTAND:
-- ALWAYS add a proper introduction to the topic that explains what it is and why it matters
-- Connect each concept to basic fundamentals that a beginner would understand
-- Break complex ideas into simple explanations with everyday analogies
-- Define ALL technical terms or jargon in simple language
-- Expand abbreviations and acronyms and explain what they mean
-- Break long sentences into multiple short ones for better readability
-- Use very simple vocabulary that a 7th grade student could understand
-- Add helpful examples for difficult concepts
-- Relate abstract concepts to real-world applications whenever possible
-- Use cause-and-effect explanations to show relationships between ideas
-
-FORMATTING FOR CLARITY:
-- Organize content logically with clear hierarchy
-- Use proper HTML formatting to enhance readability
-- Wrap main concepts of each paragraph in <strong> tags
-- Use bullet points (<ul><li>) with proper spacing between points for clarity
-- Use numbered lists (<ol><li>) for sequential steps or processes
-- Create tables (<table> tags) for comparative information
-- Use clear section headings with proper HTML styling:
-  * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Topic</span></span></h1>
-  * Secondary headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Sub-Topic</span></span></h2>
-  * Tertiary headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Specific Point</span></span></h3>
-- Ensure all HTML tags are properly closed and nested
-- Add proper spacing between sections for visual organization
-- Create a logical flow from basic to advanced concepts
-
-REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics.`
-            },
-            {
-              role: "user",
-              content: `Create detailed, comprehensive AND easy-to-understand notes from this PDF text, following ALL guidelines. Remember to: 
-1. Preserve 100% of the original content 
-2. Add proper introductions to each topic
-3. Connect each concept to its basics
-4. Explain everything in the simplest possible language
-5. Include helpful examples and real-world applications
-
-Here is the complete OCR text: ${ocrText}`
-            }
-          ],
-          temperature: 0.7, // Adjusted for better balance between creativity and precision
-          max_tokens: 12000,  // Increased token limit for complete coverage
-        }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Groq API error response:", errorText);
-        throw new Error(`Groq API error: ${response.status} - ${errorText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (!data || !data.choices || !data.choices[0] || !data.choices[0].message) {
-        console.error("Invalid response structure from Groq API:", data);
-        throw new Error("Invalid API response format");
-      }
-      
-      const notes = data.choices[0].message.content;
-      
-      // Verify we have valid formatted notes
-      if (!notes || notes.trim().length === 0) {
-        throw new Error("Empty response from Groq API");
-      }
-      
-      // Check if the notes are significantly shorter than the OCR text (potential content loss)
-      if (notes.length < ocrText.length * 0.7) {
-        console.warn("Warning: Generated notes appear to be significantly shorter than the source text");
-        toast.warning("The generated notes may be shorter than expected. Please check the raw OCR text to verify all content was included.", {
-          duration: 5000,
-          position: "top-right"
-        });
-      } else {
-        toast.success("Complete notes generated with beginner-friendly explanations", {
-          duration: 4000,
-          position: "top-right"
-        });
-      }
-      
-      // Sanitize the notes to ensure valid HTML
-      const sanitizedNotes = sanitizeHtml(notes);
-      
-      return { notes: sanitizedNotes };
-    } catch (fetchError: any) {
-      // Handle specific fetch errors
-      console.error("Groq API Fetch Error:", fetchError);
-      
-      if (fetchError.name === 'AbortError') {
-        throw new Error("Request timed out. The API took too long to respond.");
-      }
-      
-      // Try a second attempt with reduced token count if the first failed
-      try {
-        console.log("First attempt failed, trying again with reduced parameters...");
-        toast.loading("First attempt failed, retrying with optimized settings...", {
-          duration: 5000,
-          position: "top-right"
-        });
-        
-        const retryResponse = await fetch(GROQ_API_URL, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${GROQ_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: "meta-llama/llama-4-scout-17b-16e-instruct",
-            messages: [
-              {
-                role: "system",
-                content: "Create easy-to-understand notes from the PDF text. Make sure to preserve ALL information, explain concepts clearly, and format the output nicely with HTML formatting."
-              },
-              {
-                role: "user",
-                content: `Create easy-to-understand notes from this PDF text, including ALL information: ${ocrText}`
-              }
-            ],
-            temperature: 0.5,
-            max_tokens: 8000,
-          })
-        });
-        
-        if (!retryResponse.ok) {
-          throw new Error(`Retry failed with status: ${retryResponse.status}`);
-        }
-        
-        const retryData = await retryResponse.json();
-        const retryNotes = retryData.choices[0].message.content;
-        
-        if (!retryNotes || retryNotes.trim().length === 0) {
-          throw new Error("Empty response from retry attempt");
-        }
-        
-        // Check if the retry notes contain enough content
-        if (retryNotes.length < ocrText.length * 0.6) {
-          throw new Error("Retry produced incomplete notes");
-        }
-        
-        toast.success("Notes generated with simpler formatting", {
-          duration: 4000,
-          position: "top-right"
-        });
-        
-        return { notes: sanitizeHtml(retryNotes) };
-      } catch (retryError) {
-        console.error("Retry also failed:", retryError);
-        throw fetchError; // Throw the original error to trigger fallback
-      }
-    } finally {
-      clearTimeout(timeoutId);
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("Groq API error response:", errorData);
+      throw new Error(`Groq API error: ${response.status}`);
     }
+    
+    const data = await response.json();
+    const notes = data.choices[0].message.content;
+    
+    // Verify we have valid formatted notes
+    if (!notes || notes.trim().length === 0) {
+      throw new Error("Empty response from Groq API");
+    }
+    
+    // Check if the notes are significantly shorter than the OCR text (potential content loss)
+    if (notes.length < ocrText.length * 0.7) {
+      console.warn("Warning: Generated notes appear to be significantly shorter than the source text");
+      // Still proceed, but with a warning
+      toast.warning("Notes may not contain all information from the PDF. Consider reviewing the original text.", {
+        duration: 5000,
+        position: "top-right"
+      });
+    }
+    
+    // Sanitize the notes to ensure valid HTML
+    const sanitizedNotes = sanitizeHtml(notes);
+    
+    return { notes: sanitizedNotes };
+    
   } catch (error) {
     console.error("Groq API Error:", error);
-    
-    // Show a more informative error message
-    toast.error("Failed to process notes with Groq API. Creating formatted version of all OCR text.", {
+    toast.error("Failed to generate complete notes. Falling back to raw OCR text formatting.", {
       duration: 5000,
       position: "top-right"
     });
@@ -333,8 +222,8 @@ Here is the complete OCR text: ${ocrText}`
     const createFormattedNotes = (text: string) => {
       // Start with a header explaining this is fallback formatting
       let formattedHtml = `
-        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete PDF Content (Original Format)</span></span></h1>
-        <p>Below is the <strong>complete text</strong> extracted from your PDF with basic formatting. All original information has been preserved.</p>
+        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete PDF Content (API Processing Failed)</span></span></h1>
+        <p>Below is the <strong>complete text</strong> extracted from your PDF with minimal formatting.</p>
       `;
       
       // Extract pages and preserve ALL content
@@ -346,13 +235,7 @@ Here is the complete OCR text: ${ocrText}`
         
         paragraphs.forEach(paragraph => {
           if (paragraph.trim().length > 0) {
-            // Apply basic formatting to enhance readability even in the fallback
-            const enhancedParagraph = paragraph
-              .replace(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)*):/, '<strong>$1:</strong>')
-              .replace(/\b([A-Z]{2,})\b/g, '<strong>$1</strong>')
-              .replace(/\b([A-Z][a-z]{2,})\b/g, '<em>$1</em>');
-            
-            formattedHtml += `<p>${enhancedParagraph.trim()}</p>\n`;
+            formattedHtml += `<p>${paragraph.trim()}</p>\n`;
           }
         });
         
@@ -371,60 +254,28 @@ Here is the complete OCR text: ${ocrText}`
           <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">${pageTitle}</span></span></h2>
         `;
         
-        // Improve formatting by detecting potential sections in the original text
-        const sections = pageContent.split(/(?:\.\s+)(?=[A-Z][a-z]+(?:\s[A-Z][a-z]+)*:)/);
+        // Preserve ALL content by creating paragraphs at natural break points
+        // This ensures no content is skipped or lost
+        const paragraphs = pageContent.split(/(?:\.|\?|\!)(?:\s+|\n)/g)
+          .filter(p => p.trim().length > 0)
+          .map(p => p.trim() + '.');
         
-        sections.forEach(section => {
-          // Look for patterns that might indicate section headers
-          const headerMatch = section.match(/^([A-Z][a-z]+(?:\s[A-Z][a-z]+)*):(.*)$/);
-          
-          if (headerMatch) {
-            const [_, header, content] = headerMatch;
-            formattedHtml += `<h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">${header}</span></span></h3>\n`;
-            
-            // Process the content after the header
-            if (content.trim().length > 0) {
-              // Attempt to detect list patterns and format them
-              if (content.includes("• ") || content.includes("* ") || 
-                  /\d+\.\s+[A-Z]/.test(content) || 
-                  /(?:\.\s+|^)(?:\(?\d+\)?\.?\s+|\-\s+|\•\s+)/.test(content)) {
+        if (paragraphs.length > 0) {
+          paragraphs.forEach(paragraph => {
+            if (paragraph.trim().length > 0) {
+              // Highlight potential key terms
+              const processed = paragraph
+                .replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>')
+                .trim();
                 
-                // Attempt to split into list items
-                const listItems = content.split(/(?:\.\s+|^)(?:\(?\d+\)?\.?\s+|\-\s+|\•\s+)/)
-                  .filter(item => item.trim().length > 0);
-                
-                if (listItems.length > 1) {
-                  formattedHtml += '<ul>\n';
-                  listItems.forEach(item => {
-                    if (item.trim().length > 0) {
-                      formattedHtml += `<li>${item.trim()}</li>\n`;
-                    }
-                  });
-                  formattedHtml += '</ul>\n';
-                } else {
-                  formattedHtml += `<p>${content.trim()}</p>\n`;
-                }
-              } else {
-                formattedHtml += `<p>${content.trim()}</p>\n`;
-              }
+              formattedHtml += `<p>${processed}</p>\n`;
             }
-          } else {
-            // No header, just paragraph text
-            if (section.trim().length > 0) {
-              // Apply basic formatting to enhance readability
-              const enhancedSection = section
-                .replace(/\b([A-Z]{2,})\b/g, '<strong>$1</strong>')
-                .replace(/\b([A-Z][a-z]{2,}(?:\s[A-Z][a-z]+){1,3})\b/g, '<strong>$1</strong>');
-              
-              formattedHtml += `<p>${enhancedSection.trim()}</p>\n`;
-            }
-          }
-        });
+          });
+        } else {
+          // If no paragraphs were detected, preserve the raw content to ensure nothing is lost
+          formattedHtml += `<p>${pageContent}</p>\n`;
+        }
       });
-      
-      formattedHtml += `
-        <p><strong>Note:</strong> This content has been formatted in a basic way to preserve all original information. To transform this into more easily understandable notes, you can use the Chat feature to ask questions or request explanations of specific concepts.</p>
-      `;
       
       return formattedHtml;
     };
