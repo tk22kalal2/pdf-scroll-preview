@@ -39,7 +39,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
     setIsProcessing(true);
     
     // Keep track of toast ID to ensure we can dismiss it
-    let loadingToastId: string | undefined;
+    let loadingToastId: string | number;
     
     try {
       // Display thinking message
@@ -48,7 +48,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
       // Show loading toast with auto-dismiss
       loadingToastId = toast.loading("Processing your question...", {
         duration: 10000, // Maximum duration if not manually dismissed
-      }).id;
+      });
       
       // Get the Groq API key from the existing code
       const GROQ_API_KEY = "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";
