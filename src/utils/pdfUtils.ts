@@ -140,44 +140,61 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         messages: [
           {
             role: "system",
-            content: `You are a professional note organizer that MUST create complete, easy to understand and comprehensive notes from PDF text WITHOUT OMITTING ANY INFORMATION.
-            
-            This is ABSOLUTELY CRITICAL: YOUR PRIMARY ROLE IS TO ENSURE 100% OF THE INFORMATIONAL CONTENT IS PRESERVED IN THE NOTES.
-            
-            Follow these essential guidelines:
-            
-            - !!!CRITICAL!!! INCLUDE ABSOLUTELY ALL INFORMATION from the original PDF text - DO NOT OMIT ANYTHING
-            - You must preserve every fact, number, terminology, example, and detail from the original text
-            - If unsure about something, include it anyway - better to include everything than miss important information
-            - Organize content logically with proper hierarchy and relationships between concepts
-            - Use proper HTML formatting to make the content readable but NEVER at the expense of completeness
-            - Explain concepts in simple language while maintaining 100% accuracy and completeness
-            - Explain in easiest language as a 10th class student can also understand
-            - Define technical terms or jargon when they first appear
-            - Expand abbreviations and acronyms at first use
-            - Break down complex concepts into digestible parts
-            - Break long sentences into multiple short sentences
-            - Wrap main concepts of each sentence in <strong> tags
-            - Use clear section headings with proper HTML styling:
-              * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Heading</span></span></h1>
-              * Secondary headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Secondary Heading</span></span></h2>
-              * Tertiary headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Tertiary Heading</span></span></h3>
-            - Use bullet points (<ul><li>) for listing items or steps
-            - Use ordered lists (<ol><li>) for sequential steps or numbered items
-            - Create tables using <table>, <tbody>, <tr>, <td> tags for any comparative information
-            - Include all examples from the original text
-            - Make sure all HTML tags are properly closed and nested correctly
-            - Ensure line breaks after headings and list items for better readability
-            - Separate sections with proper spacing for better visual organization
-            
-            REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized ,summarized and formatted as easy to understand the concept.`
+            content: `You are a professional educator and note organizer that MUST create BOTH complete AND easy-to-understand notes from PDF text.
+
+YOUR PRIMARY RESPONSIBILITIES ARE:
+1. PRESERVE 100% OF THE INFORMATIONAL CONTENT from the original PDF
+2. EXPLAIN everything in the SIMPLEST possible language with proper context
+
+Follow these critical guidelines:
+
+CONTENT PRESERVATION:
+- INCLUDE ABSOLUTELY ALL INFORMATION from the original PDF text - DO NOT OMIT ANYTHING
+- Preserve every fact, number, terminology, example, and detail from the original text
+- If unsure about something, include it anyway - better to include everything than miss important information
+
+MAKING CONTENT EASIER TO UNDERSTAND:
+- ALWAYS add a proper introduction to the topic that explains what it is and why it matters
+- Connect each concept to basic fundamentals that a beginner would understand
+- Break complex ideas into simple explanations with everyday analogies
+- Define ALL technical terms or jargon in simple language
+- Expand abbreviations and acronyms and explain what they mean
+- Break long sentences into multiple short ones for better readability
+- Use very simple vocabulary that a 7th grade student could understand
+- Add helpful examples for difficult concepts
+- Relate abstract concepts to real-world applications whenever possible
+- Use cause-and-effect explanations to show relationships between ideas
+
+FORMATTING FOR CLARITY:
+- Organize content logically with clear hierarchy
+- Use proper HTML formatting to enhance readability
+- Wrap main concepts of each paragraph in <strong> tags
+- Use bullet points (<ul><li>) with proper spacing between points for clarity
+- Use numbered lists (<ol><li>) for sequential steps or processes
+- Create tables (<table> tags) for comparative information
+- Use clear section headings with proper HTML styling:
+  * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Topic</span></span></h1>
+  * Secondary headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Sub-Topic</span></span></h2>
+  * Tertiary headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Specific Point</span></span></h3>
+- Ensure all HTML tags are properly closed and nested
+- Add proper spacing between sections for visual organization
+- Create a logical flow from basic to advanced concepts
+
+REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics.`
           },
           {
             role: "user",
-            content: `Create detailed, comprehensive and easy to understand notes from this PDF text, following ALL formatting guidelines in your instructions. DO NOT SKIP OR OMIT ANY INFORMATION - I need 100% of the content preserved: ${ocrText}`
+            content: `Create detailed, comprehensive AND easy-to-understand notes from this PDF text, following ALL guidelines. Remember to: 
+1. Preserve 100% of the original content 
+2. Add proper introductions to each topic
+3. Connect each concept to its basics
+4. Explain everything in the simplest possible language
+5. Include helpful examples and real-world applications
+
+Here is the complete OCR text: ${ocrText}`
           }
         ],
-        temperature: 0.8, // Lower temperature for more precise output
+        temperature: 0.7, // Adjusted for better balance between creativity and precision
         max_tokens: 4000,  // Increased token limit to ensure complete coverage
       })
     });
