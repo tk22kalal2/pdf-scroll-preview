@@ -100,8 +100,8 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
               content: input.trim()
             }
           ],
-          temperature: 0.2, // Lower temperature for more focused answers
-          max_tokens: 1500  // Allow for detailed responses
+          temperature: 0.5, // Lower temperature for more focused answers
+          max_tokens: 1000  // Allow for detailed responses
         })
       });
       
