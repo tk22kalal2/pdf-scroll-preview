@@ -140,7 +140,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         messages: [
           {
             role: "system",
-            content: `You are a professional note organizer that MUST create complete, comprehensive notes from PDF text WITHOUT OMITTING ANY INFORMATION.
+            content: `You are a professional note organizer that MUST create complete, easy to understand and comprehensive notes from PDF text WITHOUT OMITTING ANY INFORMATION.
             
             This is ABSOLUTELY CRITICAL: YOUR PRIMARY ROLE IS TO ENSURE 100% OF THE ORIGINAL TEXT CONTENT IS PRESERVED IN THE NOTES.
             
@@ -152,6 +152,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             - Organize content logically with proper hierarchy and relationships between concepts
             - Use proper HTML formatting to make the content readable but NEVER at the expense of completeness
             - Explain concepts in simple language while maintaining 100% accuracy and completeness
+            - Explain in easiest language as a 10th class student can also understand
             - Define technical terms or jargon when they first appear
             - Expand abbreviations and acronyms at first use
             - Break down complex concepts into digestible parts
@@ -176,7 +177,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             content: `Create detailed, comprehensive notes from this PDF text, following ALL formatting guidelines in your instructions. DO NOT SKIP OR OMIT ANY INFORMATION - I need 100% of the content preserved: ${ocrText}`
           }
         ],
-        temperature: 0.1, // Lower temperature for more precise output
+        temperature: 0.5, // Lower temperature for more precise output
         max_tokens: 4000,  // Increased token limit to ensure complete coverage
       })
     });
