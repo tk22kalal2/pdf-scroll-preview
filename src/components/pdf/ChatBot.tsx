@@ -1,3 +1,4 @@
+
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -167,7 +168,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
                 <div 
                   className={`${
                     message.role === 'assistant' 
-                      ? 'prose prose-headings:my-2 prose-p:my-2 prose-ul:my-2 prose-li:my-1 dark:prose-invert max-w-none' 
+                      ? 'prose prose-headings:my-2 prose-p:my-2 prose-ul:my-2 prose-li:my-1 prose-ul:space-y-2 dark:prose-invert max-w-none' 
                       : 'text-inherit'
                   }`}
                   dangerouslySetInnerHTML={{ 
@@ -201,3 +202,4 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
     </div>
   );
 };
+
