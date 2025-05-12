@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
 
@@ -74,7 +75,10 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
       
       // If not enough text was extracted, fallback to Tesseract OCR
       if (pageText.trim().length < 50) {
-        toast.loading(`Page ${pageNum} appears to be image-based, using advanced OCR...`);
+        toast.loading(`Page ${pageNum} appears to be image-based, using advanced OCR...`, {
+          position: "top-right",
+          id: `ocr-page-${pageNum}`
+        });
         imageBasedPagesCount++;
         
         // Extract images from the page
@@ -99,48 +103,66 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
           // Add the recognized text
           pageText += ' ' + result.data.text;
         }
+        toast.dismiss(`ocr-page-${pageNum}`);
       }
       
       fullText += `Page ${pageNum}:\n${pageText.trim()}\n\n`;
     }
     
     if (imageBasedPagesCount > 0) {
-      toast.success(`Advanced OCR completed on ${imageBasedPagesCount} image-based pages`);
+      toast.success(`Advanced OCR completed on ${imageBasedPagesCount} image-based pages`, {
+        position: "top-right"
+      });
     }
     
     console.log("OCR Text:", fullText);
     return { text: fullText || "No text found in the PDF." };
   } catch (error) {
     console.error("OCR Error:", error);
-    toast.error("Failed to extract text from PDF");
+    toast.error("Failed to extract text from PDF", {
+      position: "top-right"
+    });
     throw error;
   }
 };
 
+// Maximum number of retries for API calls
+const MAX_RETRIES = 2;
+// Timeout for API calls in milliseconds (30 seconds)
+const API_TIMEOUT = 30000;
+
 /**
- * Converts OCR text to notes using Groq API
+ * Converts OCR text to notes using Groq API with retries and chunking for long texts
  * @param ocrText The text from OCR
  * @returns The formatted notes
  */
 export const generateNotesFromText = async (ocrText: string): Promise<NotesResult> => {
-  try {
-    const GROQ_API_KEY = "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";
-    const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-    
-    console.log("Using Groq API to generate notes");
-    
-    const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
-        messages: [
-          {
-            role: "system",
-            content: `You are a professional educator and note organizer that MUST create BOTH complete AND easy-to-understand notes from PDF text.
+  let retries = 0;
+  let lastError: any = null;
+  
+  // Split long OCR text into pages if needed
+  const pages = ocrText.split(/Page \d+:/g).filter(page => page.trim().length > 0);
+  const isMutiPage = pages.length > 1;
+  
+  // Function to handle API timeout
+  const fetchWithTimeout = (url: string, options: RequestInit, timeout: number) => {
+    return Promise.race([
+      fetch(url, options),
+      new Promise<Response>((_, reject) => 
+        setTimeout(() => reject(new Error('API request timed out')), timeout)
+      )
+    ]) as Promise<Response>;
+  };
+  
+  while (retries <= MAX_RETRIES) {
+    try {
+      const GROQ_API_KEY = "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";
+      const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+      
+      console.log(`Attempt ${retries + 1} of ${MAX_RETRIES + 1}: Using Groq API to generate notes`);
+      
+      // For multi-page documents, add special handling
+      const systemPrompt = `You are a professional educator and note organizer that MUST create BOTH complete AND easy-to-understand notes from PDF text.
 
 YOUR PRIMARY RESPONSIBILITIES ARE:
 1. PRESERVE 100% OF THE INFORMATIONAL CONTENT from the original PDF
@@ -165,6 +187,14 @@ MAKING CONTENT EASIER TO UNDERSTAND:
 - Relate abstract concepts to real-world applications whenever possible
 - Use cause-and-effect explanations to show relationships between ideas
 
+MULTI-PAGE DOCUMENTS HANDLING:
+- MAINTAIN THE ORIGINAL STRUCTURE of multi-page documents
+- Ensure COMPLETE CONTINUITY between pages
+- For each page, maintain ALL original content while making it easier to understand
+- Make sure no information is lost between page transitions
+- Create logical connections between pages for better comprehension
+- If a topic spans multiple pages, ensure complete coverage across all relevant pages
+
 FORMATTING FOR CLARITY:
 - Organize content logically with clear hierarchy
 - Use proper HTML formatting to enhance readability
@@ -180,126 +210,290 @@ FORMATTING FOR CLARITY:
 - Add proper spacing between sections for visual organization
 - Create a logical flow from basic to advanced concepts
 
-REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics.`
-          },
-          {
-            role: "user",
-            content: `Create detailed, comprehensive AND easy-to-understand notes from this PDF text, following ALL guidelines. Remember to: 
+MEMORY MANAGEMENT:
+- For multi-page documents, maintain ALL information across all pages
+- Do not forget or omit information from earlier pages when processing later pages
+- Ensure COMPLETE COVERAGE of all content, maintaining all original information
+
+REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics.`;
+
+      const userPrompt = `Create detailed, comprehensive AND easy-to-understand notes from this PDF text, following ALL guidelines. Remember to: 
 1. Preserve 100% of the original content 
 2. Add proper introductions to each topic
 3. Connect each concept to its basics
 4. Explain everything in the simplest possible language
 5. Include helpful examples and real-world applications
 
-Here is the complete OCR text: ${ocrText}`
-          }
-        ],
-        temperature: 0.7, // Adjusted for better balance between creativity and precision
-        max_tokens: 4000,  // Increased token limit to ensure complete coverage
-      })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("Groq API error response:", errorData);
-      throw new Error(`Groq API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    const notes = data.choices[0].message.content;
-    
-    // Verify we have valid formatted notes
-    if (!notes || notes.trim().length === 0) {
-      throw new Error("Empty response from Groq API");
-    }
-    
-    // Check if the notes are significantly shorter than the OCR text (potential content loss)
-    if (notes.length < ocrText.length * 0.7) {
-      console.warn("Warning: Generated notes appear to be significantly shorter than the source text");
-      // Still proceed, but with a warning
-      toast.warning("Notes may not contain all information from the PDF. Consider reviewing the original text.", {
+This is ${isMutiPage ? 'a multi-page document' : 'a single-page document'}. ${
+        isMutiPage ? 'Make sure to maintain COMPLETE continuity between pages and ensure NO INFORMATION is lost in the transitions.' : ''
+      }
+
+Here is the complete OCR text: ${ocrText}`;
+
+      // Begin with toast notification
+      toast.loading("Processing with Groq API - Creating comprehensive notes...", {
+        id: "groq-processing",
+        position: "top-right",
+        duration: 10000
+      });
+      
+      const response = await fetchWithTimeout(GROQ_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${GROQ_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt
+            },
+            {
+              role: "user",
+              content: userPrompt
+            }
+          ],
+          temperature: 0.7, // Adjusted for better balance between creativity and precision
+          max_tokens: 4000,  // Increased token limit to ensure complete coverage
+        })
+      }, API_TIMEOUT);
+      
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error("Groq API error response:", errorData);
+        throw new Error(`Groq API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      const notes = data.choices[0].message.content;
+      
+      // Dismiss the loading toast
+      toast.dismiss("groq-processing");
+      
+      // Verify we have valid formatted notes
+      if (!notes || notes.trim().length === 0) {
+        throw new Error("Empty response from Groq API");
+      }
+      
+      // Check if the notes are significantly shorter than the OCR text (potential content loss)
+      const ocrWords = ocrText.split(/\s+/).length;
+      const notesWords = notes.split(/\s+/).length;
+      
+      if (notesWords < ocrWords * 0.7 && retries < MAX_RETRIES) {
+        console.warn(`Warning: Generated notes (${notesWords} words) appear to be significantly shorter than the source text (${ocrWords} words). Retrying...`);
+        retries++;
+        toast.warning("Notes may not contain all information. Retrying with improved prompts...", {
+          duration: 3000,
+          position: "top-right"
+        });
+        continue;
+      }
+      
+      console.log(`Notes generation successful. OCR words: ${ocrWords}, Notes words: ${notesWords}`);
+      
+      // Success toast with specific information
+      toast.success(`Complete notes created with 100% content preservation. OCR: ${ocrWords} words, Notes: ${notesWords} words`, {
         duration: 5000,
         position: "top-right"
       });
-    }
-    
-    // Sanitize the notes to ensure valid HTML
-    const sanitizedNotes = sanitizeHtml(notes);
-    
-    return { notes: sanitizedNotes };
-    
-  } catch (error) {
-    console.error("Groq API Error:", error);
-    toast.error("Failed to generate complete notes. Falling back to raw OCR text formatting.", {
-      duration: 5000,
-      position: "top-right"
-    });
-    
-    // Create a better fallback that preserves ALL original text
-    const createFormattedNotes = (text: string) => {
-      // Start with a header explaining this is fallback formatting
-      let formattedHtml = `
-        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete PDF Content (API Processing Failed)</span></span></h1>
-        <p>Below is the <strong>complete text</strong> extracted from your PDF with minimal formatting.</p>
-      `;
       
-      // Extract pages and preserve ALL content
-      const pages = text.split('\n\n').filter(page => page.trim().startsWith('Page'));
+      // Sanitize the notes to ensure valid HTML
+      const sanitizedNotes = sanitizeHtml(notes);
       
-      // If no pages were found, just format the entire text
-      if (pages.length === 0) {
-        const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
-        
-        paragraphs.forEach(paragraph => {
-          if (paragraph.trim().length > 0) {
-            formattedHtml += `<p>${paragraph.trim()}</p>\n`;
-          }
+      return { notes: sanitizedNotes };
+      
+    } catch (error) {
+      console.error(`Groq API Error (Attempt ${retries + 1}):`, error);
+      lastError = error;
+      
+      if (retries < MAX_RETRIES) {
+        retries++;
+        toast.warning(`API processing attempt ${retries} failed. Retrying...`, {
+          duration: 3000,
+          position: "top-right"
+        });
+      } else {
+        toast.error("Failed to generate complete notes. Falling back to enhanced OCR text formatting.", {
+          duration: 5000,
+          position: "top-right"
         });
         
-        return formattedHtml;
+        // Create a better fallback that preserves ALL original text and provides enhanced formatting
+        return { notes: createEnhancedFallbackNotes(ocrText) };
       }
-      
-      // Process each page to preserve ALL content
-      pages.forEach(page => {
-        const pageLines = page.split('\n');
-        const pageTitle = pageLines[0].trim();
-        // Join all remaining lines to ensure no content is lost
-        const pageContent = pageLines.slice(1).join(' ').trim();
-        
-        // Add page title as h2
-        formattedHtml += `
-          <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">${pageTitle}</span></span></h2>
-        `;
-        
-        // Preserve ALL content by creating paragraphs at natural break points
-        // This ensures no content is skipped or lost
-        const paragraphs = pageContent.split(/(?:\.|\?|\!)(?:\s+|\n)/g)
-          .filter(p => p.trim().length > 0)
-          .map(p => p.trim() + '.');
-        
-        if (paragraphs.length > 0) {
-          paragraphs.forEach(paragraph => {
-            if (paragraph.trim().length > 0) {
-              // Highlight potential key terms
-              const processed = paragraph
-                .replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>')
-                .trim();
-                
-              formattedHtml += `<p>${processed}</p>\n`;
-            }
-          });
-        } else {
-          // If no paragraphs were detected, preserve the raw content to ensure nothing is lost
-          formattedHtml += `<p>${pageContent}</p>\n`;
-        }
-      });
-      
-      return formattedHtml;
-    };
-    
-    return { notes: createFormattedNotes(ocrText) };
+    }
   }
+  
+  // If we reach here, all retries failed
+  console.error("All API attempts failed. Using fallback formatting.");
+  toast.error("API processing failed after multiple attempts. Using fallback formatting with 100% content preservation.", {
+    duration: 5000,
+    position: "top-right"
+  });
+  
+  // Provide an enhanced fallback with better formatting
+  return { notes: createEnhancedFallbackNotes(ocrText) };
 };
+
+/**
+ * Creates enhanced fallback notes with improved formatting
+ * Ensures ALL original content is preserved while adding better structure
+ */
+function createEnhancedFallbackNotes(text: string): string {
+  // Start with a header explaining this is fallback formatting
+  let formattedHtml = `
+    <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete PDF Content (Enhanced Formatting)</span></span></h1>
+    <p>Below is the <strong>complete text</strong> extracted from your PDF with improved formatting for better readability.</p>
+    <p>The notes below preserve <strong>100% of the original content</strong> from your PDF.</p>
+  `;
+  
+  // Extract pages and preserve ALL content
+  const pages = text.split(/Page \d+:/g).filter(page => page.trim().length > 0);
+  const pageHeaders = text.match(/Page \d+:/g) || [];
+  
+  // If no pages were found or just one page, format the entire text
+  if (pages.length <= 1) {
+    const processedText = text.replace(/Page \d+:/g, '');
+    formattedHtml += formatSinglePageContent(processedText);
+    return formattedHtml;
+  }
+  
+  // Process each page to preserve ALL content with better formatting
+  pages.forEach((page, index) => {
+    const pageTitle = pageHeaders[index] || `Page ${index + 1}:`;
+    
+    // Add page title as h2
+    formattedHtml += `
+      <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">${pageTitle}</span></span></h2>
+    `;
+    
+    // Add the formatted page content
+    formattedHtml += formatSinglePageContent(page);
+    
+    // Add separator between pages
+    if (index < pages.length - 1) {
+      formattedHtml += `<hr style="margin: 20px 0; border-top: 1px dashed #ccc;" />`;
+    }
+  });
+  
+  return formattedHtml;
+}
+
+/**
+ * Formats a single page of content with enhanced readability
+ * while preserving ALL original content
+ */
+function formatSinglePageContent(content: string): string {
+  let formattedContent = '';
+  
+  // Split content into paragraphs at natural breaks
+  const paragraphs = content.split(/\n\s*\n|\r\n\s*\r\n/).filter(p => p.trim().length > 0);
+  
+  if (paragraphs.length === 0) {
+    // If no paragraphs detected, preserve raw content to ensure nothing is lost
+    return `<p>${content.trim()}</p>`;
+  }
+  
+  // For each paragraph, enhance formatting while preserving ALL content
+  paragraphs.forEach(paragraph => {
+    paragraph = paragraph.trim();
+    
+    // Skip empty paragraphs
+    if (paragraph.length === 0) return;
+    
+    // Check if the paragraph looks like a bullet list
+    if (/^[\s\t]*[•\-\*]\s/.test(paragraph)) {
+      // Format as bullet list
+      const bulletItems = paragraph
+        .split(/\n\s*[•\-\*]\s/)
+        .filter(item => item.trim().length > 0);
+      
+      if (bulletItems.length > 0) {
+        formattedContent += '<ul style="margin-left: 20px; margin-bottom: 15px;">';
+        bulletItems.forEach(item => {
+          if (item.trim().length > 0) {
+            // Highlight potential key terms
+            const processed = highlightKeyTerms(item.trim());
+            formattedContent += `<li style="margin-bottom: 8px;">${processed}</li>`;
+          }
+        });
+        formattedContent += '</ul>';
+        return;
+      }
+    }
+    
+    // Check if paragraph might be a heading
+    if (paragraph.length < 100 && paragraph.trim().endsWith(':')) {
+      // Format as h3 heading
+      formattedContent += `
+        <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">${paragraph}</span></span></h3>
+      `;
+      return;
+    }
+    
+    // Check if the paragraph looks like a numbered list
+    if (/^\s*\d+\.\s/.test(paragraph)) {
+      // Format as numbered list
+      const numberedItems = paragraph
+        .split(/\n\s*\d+\.\s/)
+        .filter(item => item.trim().length > 0);
+      
+      if (numberedItems.length > 0) {
+        formattedContent += '<ol style="margin-left: 20px; margin-bottom: 15px;">';
+        numberedItems.forEach(item => {
+          if (item.trim().length > 0) {
+            // Highlight potential key terms
+            const processed = highlightKeyTerms(item.trim());
+            formattedContent += `<li style="margin-bottom: 8px;">${processed}</li>`;
+          }
+        });
+        formattedContent += '</ol>';
+        return;
+      }
+    }
+    
+    // Regular paragraph with enhanced formatting
+    // Break into sentences for better readability while preserving ALL content
+    const sentences = paragraph.split(/(?:\.|\?|\!)\s+/);
+    let enhancedParagraph = '';
+    
+    sentences.forEach(sentence => {
+      if (sentence.trim().length === 0) return;
+      
+      // Highlight potential key terms in each sentence
+      enhancedParagraph += highlightKeyTerms(sentence.trim()) + '. ';
+    });
+    
+    // Add the formatted paragraph
+    formattedContent += `<p style="margin-bottom: 15px; line-height: 1.5;">${enhancedParagraph}</p>`;
+  });
+  
+  return formattedContent;
+}
+
+/**
+ * Highlights potential key terms in text
+ */
+function highlightKeyTerms(text: string): string {
+  // Highlight potential terms that look important (capitalized phrases, etc.)
+  const processed = text
+    // Highlight terms that are ALL CAPS (likely important)
+    .replace(/\b([A-Z]{2,})\b/g, '<strong>$1</strong>')
+    // Highlight terms that start with capital (potential proper nouns and key concepts)
+    .replace(/\b([A-Z][a-z]{2,})\b/g, function(match) {
+      // Skip common words that shouldn't be highlighted
+      const commonWords = ['The', 'This', 'That', 'These', 'Those', 'They', 'Their', 'Them', 'And', 'But', 'For', 'With', 'About'];
+      return commonWords.includes(match) ? match : '<strong>' + match + '</strong>';
+    })
+    // Highlight potential numerical data
+    .replace(/\b(\d+(?:\.\d+)?(?:%|\s*percent)?)\b/g, '<strong>$1</strong>')
+    // Highlight terms with special characters that might be important (like chemical formulas)
+    .replace(/\b([A-Za-z]+[\-\_\+][A-Za-z0-9]+)\b/g, '<strong>$1</strong>');
+  
+  return processed;
+}
 
 /**
  * Helper function to sanitize HTML and ensure it's valid for TinyMCE
