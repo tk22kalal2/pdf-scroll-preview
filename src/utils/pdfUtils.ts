@@ -142,7 +142,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
   
   // Split long OCR text into pages if needed
   const pages = ocrText.split(/Page \d+:/g).filter(page => page.trim().length > 0);
-  const isMutiPage = pages.length > 1;
+  const isMultiPage = pages.length > 1;
   
   // Function to handle API timeout
   const fetchWithTimeout = (url: string, options: RequestInit, timeout: number) => {
@@ -161,12 +161,13 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
       
       console.log(`Attempt ${retries + 1} of ${MAX_RETRIES + 1}: Using Groq API to generate notes`);
       
-      // For multi-page documents, add special handling
+      // Enhanced system prompt with stronger emphasis on proper list formatting
       const systemPrompt = `You are a professional educator and note organizer that MUST create BOTH complete AND easy-to-understand notes from PDF text.
 
 YOUR PRIMARY RESPONSIBILITIES ARE:
 1. PRESERVE 100% OF THE INFORMATIONAL CONTENT from the original PDF
 2. EXPLAIN everything in the SIMPLEST possible language with proper context
+3. MAINTAIN PROPER FORMATTING, especially for lists, bullet points, and structured content
 
 Follow these critical guidelines:
 
@@ -195,6 +196,18 @@ MULTI-PAGE DOCUMENTS HANDLING:
 - Create logical connections between pages for better comprehension
 - If a topic spans multiple pages, ensure complete coverage across all relevant pages
 
+PROPER LIST FORMATTING IS CRITICAL:
+- ALWAYS use proper HTML list structures (<ul><li> or <ol><li>)
+- DO NOT convert lists to paragraph format
+- Maintain list hierarchies and indentation levels
+- Ensure each list item is correctly formatted as: <li>Item description</li>
+- For bullet lists that appear in the original text, ALWAYS use <ul><li> format
+- For numbered lists that appear in the original text, ALWAYS use <ol><li> format
+- Ensure there is proper spacing between list items
+- Always close list tags properly
+- NEVER leave list items without proper <li> tags
+- Ensure list items aren't joined together accidentally
+
 FORMATTING FOR CLARITY:
 - Organize content logically with clear hierarchy
 - Use proper HTML formatting to enhance readability
@@ -215,17 +228,34 @@ MEMORY MANAGEMENT:
 - Do not forget or omit information from earlier pages when processing later pages
 - Ensure COMPLETE COVERAGE of all content, maintaining all original information
 
-REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics.`;
+REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics. PROPER HTML FORMATTING FOR LISTS IS ABSOLUTELY ESSENTIAL.`;
 
+      // Enhanced user prompt with examples of proper list formatting
       const userPrompt = `Create detailed, comprehensive AND easy-to-understand notes from this PDF text, following ALL guidelines. Remember to: 
 1. Preserve 100% of the original content 
 2. Add proper introductions to each topic
 3. Connect each concept to its basics
 4. Explain everything in the simplest possible language
 5. Include helpful examples and real-world applications
+6. USE PROPER LIST FORMATTING - this is critical!
 
-This is ${isMutiPage ? 'a multi-page document' : 'a single-page document'}. ${
-        isMutiPage ? 'Make sure to maintain COMPLETE continuity between pages and ensure NO INFORMATION is lost in the transitions.' : ''
+IMPORTANT FORMATTING REQUIREMENTS:
+- For any list-like content, ALWAYS use proper HTML list structures
+- For bullet points use:
+  <ul>
+    <li>First point</li>
+    <li>Second point</li>
+  </ul>
+- For numbered lists use:
+  <ol>
+    <li>First step</li>
+    <li>Second step</li>
+  </ol>
+- DO NOT convert lists to paragraph format
+- DO NOT use asterisks (*) or other characters for lists - use proper HTML
+
+This is ${isMultiPage ? 'a multi-page document' : 'a single-page document'}. ${
+        isMultiPage ? 'Make sure to maintain COMPLETE continuity between pages, preserve ALL information, and ensure proper list formatting throughout all pages.' : ''
       }
 
 Here is the complete OCR text: ${ocrText}`;
@@ -255,7 +285,7 @@ Here is the complete OCR text: ${ocrText}`;
               content: userPrompt
             }
           ],
-          temperature: 0.7, // Adjusted for better balance between creativity and precision
+          temperature: 0.5, // Lowered for more consistent, deterministic output with better formatting
           max_tokens: 4000,  // Increased token limit to ensure complete coverage
         })
       }, API_TIMEOUT);
@@ -293,6 +323,9 @@ Here is the complete OCR text: ${ocrText}`;
       
       console.log(`Notes generation successful. OCR words: ${ocrWords}, Notes words: ${notesWords}`);
       
+      // Check for common list formatting issues
+      const fixedNotes = fixListFormattingIssues(notes);
+      
       // Success toast with specific information
       toast.success(`Complete notes created with 100% content preservation. OCR: ${ocrWords} words, Notes: ${notesWords} words`, {
         duration: 5000,
@@ -300,7 +333,7 @@ Here is the complete OCR text: ${ocrText}`;
       });
       
       // Sanitize the notes to ensure valid HTML
-      const sanitizedNotes = sanitizeHtml(notes);
+      const sanitizedNotes = sanitizeHtml(fixedNotes);
       
       return { notes: sanitizedNotes };
       
@@ -338,6 +371,65 @@ Here is the complete OCR text: ${ocrText}`;
 };
 
 /**
+ * Fixes common list formatting issues in the API response
+ */
+function fixListFormattingIssues(html: string): string {
+  let fixed = html;
+  
+  // Fix incorrect list formats like "* Item" or "- Item" that should be <li>Item</li>
+  fixed = fixed.replace(/(<p>|<div>|\s)\*\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ul><li>$2</li></ul>');
+  fixed = fixed.replace(/(<p>|<div>|\s)-\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ul><li>$2</li></ul>');
+  
+  // Fix multiple bullet points in paragraphs
+  fixed = fixed.replace(/(<p>.*?)(\*\s+([^*<]+)(\s*\*\s+([^*<]+))+)(<\/p>)/g, (match, start, content, _, __, end) => {
+    const items = content.split(/\s*\*\s+/).filter(item => item.trim());
+    return '<ul>' + items.map(item => `<li>${item}</li>`).join('') + '</ul>';
+  });
+  
+  // Fix lists that are incorrectly formatted as paragraphs
+  const listPatterns = [
+    { regex: /<p>([^:]+):\s*<\/p>\s*<p>\s*\*\s+/g, replacement: '<h3>$1:</h3><ul><li>' },
+    { regex: /<p>\s*\*\s+/g, replacement: '<ul><li>' },
+    { regex: /<\/p>\s*<p>\s*\*\s+/g, replacement: '</li><li>' },
+    { regex: /<\/p>(\s*<p>[^*<])/g, replacement: '</li></ul>$1' },
+  ];
+  
+  for (const pattern of listPatterns) {
+    fixed = fixed.replace(pattern.regex, pattern.replacement);
+  }
+  
+  // Fix incomplete closing of lists
+  if ((fixed.match(/<ul>/g) || []).length > (fixed.match(/<\/ul>/g) || []).length) {
+    fixed += '</ul>';
+  }
+  if ((fixed.match(/<ol>/g) || []).length > (fixed.match(/<\/ol>/g) || []).length) {
+    fixed += '</ol>';
+  }
+  
+  // Fix unclosed list items
+  if ((fixed.match(/<li>/g) || []).length > (fixed.match(/<\/li>/g) || []).length) {
+    const diff = (fixed.match(/<li>/g) || []).length - (fixed.match(/<\/li>/g) || []).length;
+    for (let i = 0; i < diff; i++) {
+      fixed += '</li>';
+    }
+  }
+  
+  // Fix nested lists that weren't properly nested
+  fixed = fixed.replace(/<\/li><li><ul>/g, '<ul>');
+  fixed = fixed.replace(/<\/ul><\/li>/g, '</ul></li>');
+  
+  // Ensure all lists have appropriate list items
+  fixed = fixed.replace(/<ul>([^<]+)<\/ul>/g, '<ul><li>$1</li></ul>');
+  fixed = fixed.replace(/<ol>([^<]+)<\/ol>/g, '<ol><li>$1</li></ol>');
+  
+  // Fix consecutive lists
+  fixed = fixed.replace(/<\/ul>\s*<ul>/g, '');
+  fixed = fixed.replace(/<\/ol>\s*<ol>/g, '');
+  
+  return fixed;
+}
+
+/**
  * Creates enhanced fallback notes with improved formatting
  * Ensures ALL original content is preserved while adding better structure
  */
@@ -356,7 +448,7 @@ function createEnhancedFallbackNotes(text: string): string {
   // If no pages were found or just one page, format the entire text
   if (pages.length <= 1) {
     const processedText = text.replace(/Page \d+:/g, '');
-    formattedHtml += formatSinglePageContent(processedText);
+    formattedHtml += formatPageContent(processedText);
     return formattedHtml;
   }
   
@@ -370,7 +462,7 @@ function createEnhancedFallbackNotes(text: string): string {
     `;
     
     // Add the formatted page content
-    formattedHtml += formatSinglePageContent(page);
+    formattedHtml += formatPageContent(page);
     
     // Add separator between pages
     if (index < pages.length - 1) {
@@ -382,95 +474,267 @@ function createEnhancedFallbackNotes(text: string): string {
 }
 
 /**
- * Formats a single page of content with enhanced readability
- * while preserving ALL original content
+ * Formats a page of content with enhanced readability
+ * with special handling for lists and structured content
  */
-function formatSinglePageContent(content: string): string {
+function formatPageContent(content: string): string {
   let formattedContent = '';
   
-  // Split content into paragraphs at natural breaks
-  const paragraphs = content.split(/\n\s*\n|\r\n\s*\r\n/).filter(p => p.trim().length > 0);
+  // Pre-process the content to identify and mark list-like structures
+  let processedContent = content;
   
-  if (paragraphs.length === 0) {
-    // If no paragraphs detected, preserve raw content to ensure nothing is lost
+  // Split content into sections based on potential headers or clear paragraph breaks
+  const sections = processedContent.split(/\n\s*\n|\r\n\s*\r\n/).filter(s => s.trim().length > 0);
+  
+  if (sections.length === 0) {
+    // If no sections detected, preserve raw content to ensure nothing is lost
     return `<p>${content.trim()}</p>`;
   }
   
-  // For each paragraph, enhance formatting while preserving ALL content
-  paragraphs.forEach(paragraph => {
-    paragraph = paragraph.trim();
+  // Process each section, looking for special structures like lists
+  sections.forEach(section => {
+    section = section.trim();
     
-    // Skip empty paragraphs
-    if (paragraph.length === 0) return;
+    // Skip empty sections
+    if (section.length === 0) return;
     
-    // Check if the paragraph looks like a bullet list
-    if (/^[\s\t]*[•\-\*]\s/.test(paragraph)) {
-      // Format as bullet list
-      const bulletItems = paragraph
-        .split(/\n\s*[•\-\*]\s/)
-        .filter(item => item.trim().length > 0);
-      
-      if (bulletItems.length > 0) {
-        formattedContent += '<ul style="margin-left: 20px; margin-bottom: 15px;">';
-        bulletItems.forEach(item => {
-          if (item.trim().length > 0) {
-            // Highlight potential key terms
-            const processed = highlightKeyTerms(item.trim());
-            formattedContent += `<li style="margin-bottom: 8px;">${processed}</li>`;
-          }
-        });
-        formattedContent += '</ul>';
-        return;
-      }
-    }
-    
-    // Check if paragraph might be a heading
-    if (paragraph.length < 100 && paragraph.trim().endsWith(':')) {
-      // Format as h3 heading
-      formattedContent += `
-        <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">${paragraph}</span></span></h3>
-      `;
+    // 1. Check if section looks like a bullet list
+    if (isBulletList(section)) {
+      formattedContent += formatAsBulletList(section);
       return;
     }
     
-    // Check if the paragraph looks like a numbered list
-    if (/^\s*\d+\.\s/.test(paragraph)) {
-      // Format as numbered list
-      const numberedItems = paragraph
-        .split(/\n\s*\d+\.\s/)
-        .filter(item => item.trim().length > 0);
-      
-      if (numberedItems.length > 0) {
-        formattedContent += '<ol style="margin-left: 20px; margin-bottom: 15px;">';
-        numberedItems.forEach(item => {
-          if (item.trim().length > 0) {
-            // Highlight potential key terms
-            const processed = highlightKeyTerms(item.trim());
-            formattedContent += `<li style="margin-bottom: 8px;">${processed}</li>`;
-          }
-        });
-        formattedContent += '</ol>';
-        return;
-      }
+    // 2. Check if section looks like a numbered list
+    if (isNumberedList(section)) {
+      formattedContent += formatAsNumberedList(section);
+      return;
     }
     
-    // Regular paragraph with enhanced formatting
-    // Break into sentences for better readability while preserving ALL content
-    const sentences = paragraph.split(/(?:\.|\?|\!)\s+/);
-    let enhancedParagraph = '';
+    // 3. Check if section might be a heading
+    if (isPotentialHeading(section)) {
+      formattedContent += formatAsHeading(section);
+      return;
+    }
     
-    sentences.forEach(sentence => {
-      if (sentence.trim().length === 0) return;
-      
-      // Highlight potential key terms in each sentence
-      enhancedParagraph += highlightKeyTerms(sentence.trim()) + '. ';
-    });
-    
-    // Add the formatted paragraph
-    formattedContent += `<p style="margin-bottom: 15px; line-height: 1.5;">${enhancedParagraph}</p>`;
+    // 4. Handle standard paragraphs with enhanced formatting
+    formattedContent += formatAsParagraph(section);
   });
   
   return formattedContent;
+}
+
+/**
+ * Check if text appears to be a bullet list
+ */
+function isBulletList(text: string): boolean {
+  // Check for common bullet patterns:
+  // - Lines starting with *, -, •, bullet, etc.
+  // - Multiple consecutive lines with similar starting patterns
+  const bulletPatterns = [
+    /^\s*[•\*\-]\s+.+(\n\s*[•\*\-]\s+.+)+/m,  // Multiple bullet points
+    /^\s*[•\*\-]\s+.+/m && text.split("\n").filter(line => /^\s*[•\*\-]\s+/.test(line)).length > 1,
+    /\n\s*[•\*\-]\s+.+(\n\s*[•\*\-]\s+.+)+/m  // Bullets after initial text
+  ];
+  
+  return bulletPatterns.some(pattern => pattern.test(text));
+}
+
+/**
+ * Check if text appears to be a numbered list
+ */
+function isNumberedList(text: string): boolean {
+  // Check for common numbered list patterns:
+  // - Lines starting with numbers followed by period or parenthesis
+  // - Sequential numbering
+  const numberedPatterns = [
+    /^\s*\d+[\.\)]\s+.+(\n\s*\d+[\.\)]\s+.+)+/m,  // Multiple numbered items
+    /^\s*\d+[\.\)]\s+.+/m && text.split("\n").filter(line => /^\s*\d+[\.\)]\s+/.test(line)).length > 1,
+    /\n\s*\d+[\.\)]\s+.+(\n\s*\d+[\.\)]\s+.+)+/m  // Numbers after initial text
+  ];
+  
+  return numberedPatterns.some(pattern => pattern.test(text));
+}
+
+/**
+ * Check if text might be a heading
+ */
+function isPotentialHeading(text: string): boolean {
+  // Potential heading characteristics:
+  // - Short text (under 100 chars)
+  // - Ends with colon
+  // - All caps or title case
+  // - No sentence ending punctuation within
+  return (
+    (text.length < 100 && text.trim().endsWith(':')) ||
+    (text.length < 60 && !/[.!?]/.test(text.slice(0, -1)) && /^[A-Z]/.test(text)) ||
+    (text.length < 40 && text === text.toUpperCase())
+  );
+}
+
+/**
+ * Format text as a bullet list
+ */
+function formatAsBulletList(text: string): string {
+  // Split by common bullet point indicators
+  const lines = text.split("\n");
+  let inList = false;
+  let html = '';
+  let currentListItems = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Check if this line is a bullet point
+    if (/^\s*[•\*\-]\s+/.test(line)) {
+      // Extract the content after the bullet
+      const content = line.replace(/^\s*[•\*\-]\s+/, '').trim();
+      
+      if (!inList) {
+        // Start a new list
+        currentListItems = `<li>${highlightKeyTerms(content)}</li>`;
+        inList = true;
+      } else {
+        // Add to existing list
+        currentListItems += `<li>${highlightKeyTerms(content)}</li>`;
+      }
+    } else if (inList) {
+      // End current list and add non-list content
+      html += `<ul style="margin-left: 20px; margin-bottom: 15px;">${currentListItems}</ul>`;
+      inList = false;
+      currentListItems = '';
+      
+      // Add the non-bullet line as paragraph
+      if (line.length > 0) {
+        html += `<p style="margin-bottom: 15px; line-height: 1.5;">${highlightKeyTerms(line)}</p>`;
+      }
+    } else if (line.length > 0) {
+      // Regular paragraph
+      html += `<p style="margin-bottom: 15px; line-height: 1.5;">${highlightKeyTerms(line)}</p>`;
+    }
+  }
+  
+  // Close any open list
+  if (inList) {
+    html += `<ul style="margin-left: 20px; margin-bottom: 15px;">${currentListItems}</ul>`;
+  }
+  
+  return html;
+}
+
+/**
+ * Format text as a numbered list
+ */
+function formatAsNumberedList(text: string): string {
+  // Similar to bullet list but for numbered items
+  const lines = text.split("\n");
+  let inList = false;
+  let html = '';
+  let currentListItems = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // Check if this line is a numbered item
+    if (/^\s*\d+[\.\)]\s+/.test(line)) {
+      // Extract the content after the number
+      const content = line.replace(/^\s*\d+[\.\)]\s+/, '').trim();
+      
+      if (!inList) {
+        // Start a new list
+        currentListItems = `<li>${highlightKeyTerms(content)}</li>`;
+        inList = true;
+      } else {
+        // Add to existing list
+        currentListItems += `<li>${highlightKeyTerms(content)}</li>`;
+      }
+    } else if (inList) {
+      // End current list and add non-list content
+      html += `<ol style="margin-left: 20px; margin-bottom: 15px;">${currentListItems}</ol>`;
+      inList = false;
+      currentListItems = '';
+      
+      // Add the non-numbered line as paragraph
+      if (line.length > 0) {
+        html += `<p style="margin-bottom: 15px; line-height: 1.5;">${highlightKeyTerms(line)}</p>`;
+      }
+    } else if (line.length > 0) {
+      // Regular paragraph
+      html += `<p style="margin-bottom: 15px; line-height: 1.5;">${highlightKeyTerms(line)}</p>`;
+    }
+  }
+  
+  // Close any open list
+  if (inList) {
+    html += `<ol style="margin-left: 20px; margin-bottom: 15px;">${currentListItems}</ol>`;
+  }
+  
+  return html;
+}
+
+/**
+ * Format text as a heading
+ */
+function formatAsHeading(text: string): string {
+  // Determine heading level based on characteristics
+  let level = 3; // Default to h3
+  
+  if (text.length < 40 && text === text.toUpperCase()) {
+    level = 2; // Shorter, all caps gets h2
+  }
+  
+  if (text.length < 20) {
+    level = 2; // Very short gets h2
+  }
+  
+  // Format as appropriate heading level
+  if (level === 2) {
+    return `<h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">${text}</span></span></h2>`;
+  } else {
+    return `<h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">${text}</span></span></h3>`;
+  }
+}
+
+/**
+ * Format text as a regular paragraph with enhanced readability
+ */
+function formatAsParagraph(text: string): string {
+  // Check for special patterns within the paragraph that might indicate lists
+  if (text.includes("* ") && text.split("* ").length > 2) {
+    // This paragraph contains bullet-like items
+    const parts = text.split("* ");
+    let html = '';
+    
+    // First part might be an introduction
+    if (parts[0].trim().length > 0) {
+      html += `<p style="margin-bottom: 15px; line-height: 1.5;">${highlightKeyTerms(parts[0].trim())}</p>`;
+    }
+    
+    // Format remaining parts as a list
+    html += '<ul style="margin-left: 20px; margin-bottom: 15px;">';
+    for (let i = 1; i < parts.length; i++) {
+      if (parts[i].trim().length > 0) {
+        html += `<li>${highlightKeyTerms(parts[i].trim())}</li>`;
+      }
+    }
+    html += '</ul>';
+    
+    return html;
+  }
+  
+  // Regular paragraph processing
+  // Break into sentences for better readability while preserving ALL content
+  const sentences = text.split(/(?<=\.|\?|\!)\s+/);
+  let enhancedParagraph = '';
+  
+  sentences.forEach(sentence => {
+    if (sentence.trim().length === 0) return;
+    
+    // Highlight potential key terms in each sentence
+    enhancedParagraph += highlightKeyTerms(sentence.trim()) + ' ';
+  });
+  
+  // Add the formatted paragraph
+  return `<p style="margin-bottom: 15px; line-height: 1.5;">${enhancedParagraph}</p>`;
 }
 
 /**

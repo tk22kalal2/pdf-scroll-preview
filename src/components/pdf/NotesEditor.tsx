@@ -55,7 +55,7 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
   const handleDownloadHTML = () => {
     const content = editorRef.current?.getContent() || notesContent;
     const blob = new Blob([
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Complete PDF Notes</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:20px;max-width:800px;margin:0 auto;}h1{color:rgb(71,0,0);}h2{color:rgb(26,1,157);}h3{color:rgb(52,73,94);}ul{margin-left:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;}th{background-color:#f2f2f2;}p{margin-bottom:12px;}</style></head><body>' +
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Complete PDF Notes</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:20px;max-width:800px;margin:0 auto;}h1{color:rgb(71,0,0);}h2{color:rgb(26,1,157);}h3{color:rgb(52,73,94);}ul{margin-left:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;}th{background-color:#f2f2f2;}p{margin-bottom:12px;}li{margin-bottom:8px;}</style></head><body>' +
       content +
       '</body></html>'
     ], { type: "text/html" });
@@ -109,6 +109,32 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
     });
   };
 
+  // Function to fix and sanitize list formatting issues on paste
+  const handlePaste = (e: any, editor: any) => {
+    editor.on('PastePreProcess', function(e: any) {
+      let content = e.content;
+      
+      // Fix common list formatting issues on paste
+      if (content.includes('*') || content.includes('-') || content.includes('•')) {
+        // Convert * and - bullet points to proper list items
+        content = content.replace(/(<p>|<div>|\s)\*\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ul><li>$2</li></ul>');
+        content = content.replace(/(<p>|<div>|\s)-\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ul><li>$2</li></ul>');
+        content = content.replace(/(<p>|<div>|\s)•\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ul><li>$2</li></ul>');
+        
+        // Fix consecutive list items
+        content = content.replace(/<\/ul>\s*<ul>/g, '');
+      }
+      
+      // Fix numbered lists on paste
+      if (content.match(/\d+\.\s+/)) {
+        content = content.replace(/(<p>|<div>|\s)\d+\.\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ol><li>$2</li></ol>');
+        content = content.replace(/<\/ol>\s*<ol>/g, '');
+      }
+      
+      e.content = content;
+    });
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg flex flex-col h-[85vh]">
       <div className="p-4 border-b flex justify-between items-center">
@@ -148,7 +174,11 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
         <div className={`${showChat ? 'w-1/2' : 'w-full'} transition-all duration-300`}>
           <Editor
             apiKey="cg09wsf15duw9av3kj5g8d8fvsxvv3uver3a95xyfm1ngtq4"
-            onInit={(evt, editor) => editorRef.current = editor}
+            onInit={(evt, editor) => {
+              editorRef.current = editor;
+              // Apply paste handler after initialization
+              handlePaste(evt, editor);
+            }}
             initialValue={notes}
             onEditorChange={handleEditorChange}
             init={{
@@ -233,7 +263,13 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                   padding-left: 20px;
                 }
                 li {
-                  margin-bottom: 6px;
+                  margin-bottom: 8px;
+                }
+                ul li {
+                  list-style-type: disc;
+                }
+                ol li {
+                  list-style-type: decimal;
                 }
                 img { 
                   max-width: 100%; 
@@ -290,6 +326,25 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                   onAction: function() {
                     editor.setContent(notesContent);
                   }
+                });
+                
+                // Important: Fix list formatting issues when pasting content
+                editor.on('PastePreProcess', function(e) {
+                  let content = e.content;
+                  
+                  // Convert * and - bullet points to proper list items
+                  if (content.includes('*') || content.includes('-') || content.includes('•')) {
+                    content = content.replace(/(\*|\-|•)\s+([^*\-•<]+)(<br>|$)/g, '<li>$2</li>');
+                    
+                    // Wrap consecutive list items in ul tags
+                    if (content.includes('<li>')) {
+                      content = '<ul>' + content + '</ul>';
+                      // Fix nested lists
+                      content = content.replace(/<\/ul><ul>/g, '');
+                    }
+                  }
+                  
+                  e.content = content;
                 });
               },
               // Ensure proper handling of HTML formatting
