@@ -8,7 +8,7 @@ import { ChatBot } from "./ChatBot";
 
 interface NotesEditorProps {
   notes: string;
-  ocrText: string; // Added prop for OCR text
+  ocrText: string;
   onReturn: () => void;
 }
 
@@ -109,32 +109,6 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
     });
   };
 
-  // Function to fix and sanitize list formatting issues on paste
-  const handlePaste = (e: any, editor: any) => {
-    editor.on('PastePreProcess', function(e: any) {
-      let content = e.content;
-      
-      // Fix common list formatting issues on paste
-      if (content.includes('*') || content.includes('-') || content.includes('•')) {
-        // Convert * and - bullet points to proper list items
-        content = content.replace(/(<p>|<div>|\s)\*\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ul><li>$2</li></ul>');
-        content = content.replace(/(<p>|<div>|\s)-\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ul><li>$2</li></ul>');
-        content = content.replace(/(<p>|<div>|\s)•\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ul><li>$2</li></ul>');
-        
-        // Fix consecutive list items
-        content = content.replace(/<\/ul>\s*<ul>/g, '');
-      }
-      
-      // Fix numbered lists on paste
-      if (content.match(/\d+\.\s+/)) {
-        content = content.replace(/(<p>|<div>|\s)\d+\.\s+([^<]+)(<\/p>|<\/div>|$)/g, '<ol><li>$2</li></ol>');
-        content = content.replace(/<\/ol>\s*<ol>/g, '');
-      }
-      
-      e.content = content;
-    });
-  };
-
   return (
     <div className="bg-white rounded-lg shadow-lg flex flex-col h-[85vh]">
       <div className="p-4 border-b flex justify-between items-center">
@@ -176,8 +150,6 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
             apiKey="cg09wsf15duw9av3kj5g8d8fvsxvv3uver3a95xyfm1ngtq4"
             onInit={(evt, editor) => {
               editorRef.current = editor;
-              // Apply paste handler after initialization
-              handlePaste(evt, editor);
             }}
             initialValue={notes}
             onEditorChange={handleEditorChange}
@@ -328,11 +300,11 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                   }
                 });
                 
-                // Important: Fix list formatting issues when pasting content
+                // Fix list formatting issues when pasting content
                 editor.on('PastePreProcess', function(e) {
                   let content = e.content;
                   
-                  // Convert * and - bullet points to proper list items
+                  // Convert bullet points to proper list elements
                   if (content.includes('*') || content.includes('-') || content.includes('•')) {
                     content = content.replace(/(\*|\-|•)\s+([^*\-•<]+)(<br>|$)/g, '<li>$2</li>');
                     
@@ -344,22 +316,29 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                     }
                   }
                   
+                  // Convert numbered lists
+                  if (content.match(/\d+\.\s+/)) {
+                    content = content.replace(/(\d+)\.\s+([^<]+)(<br>|$)/g, '<li>$2</li>');
+                    
+                    if (content.includes('<li>') && !content.includes('<ul>')) {
+                      content = '<ol>' + content + '</ol>';
+                      content = content.replace(/<\/ol><ol>/g, '');
+                    }
+                  }
+                  
                   e.content = content;
                 });
               },
               // Ensure proper handling of HTML formatting
               extended_valid_elements: "img[class|src|border=0|alt|title|hspace|vspace|width|height|align|onmouseover|onmouseout|name],h1[*],h2[*],h3[*],h4[*],h5[*],h6[*],strong[*],span[*],div[*],p[*],ul[*],ol[*],li[*],table[*],tr[*],td[*],th[*],pre[*],code[*]",
-              // Fix for content not displaying correctly
               valid_elements: '*[*]',
               entity_encoding: 'raw',
               convert_urls: false,
               valid_children: "+body[style],+body[link]",
-              // Prevent TinyMCE from removing any HTML elements
               invalid_elements: '',
               force_br_newlines: false,
               force_p_newlines: true,
               forced_root_block: 'p',
-              // Improve formatting of lists and content
               indent: true,
               indent_use_margin: true,
               indent_margin: true,
@@ -368,10 +347,75 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
               paste_retain_style_properties: "color,font-size,font-family,background-color",
               paste_webkit_styles: "color,font-size,font-family,background-color",
               paste_merge_formats: false,
-              // Better handling of lists
               lists_indent_on_tab: true,
-              // Keep proper formatting on paste
-              paste_as_text: false
+              paste_as_text: false,
+              // Special handling for bullet points and lists
+              paste_preprocess: function(plugin, args) {
+                // Process content with bullet points (*) and convert to proper lists
+                let content = args.content;
+                
+                // Fix bullet points
+                if (content.includes('*') || content.includes('-') || content.includes('•')) {
+                  const lines = content.split(/\r?\n/);
+                  let inList = false;
+                  let result = '';
+                  
+                  for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    
+                    if (/^\s*[\*\-•]\s/.test(line)) {
+                      if (!inList) {
+                        result += '<ul>';
+                        inList = true;
+                      }
+                      result += '<li>' + line.replace(/^\s*[\*\-•]\s/, '') + '</li>';
+                    } else {
+                      if (inList) {
+                        result += '</ul>';
+                        inList = false;
+                      }
+                      result += line + '\n';
+                    }
+                  }
+                  
+                  if (inList) {
+                    result += '</ul>';
+                  }
+                  
+                  args.content = result;
+                }
+                
+                // Fix numbered lists
+                if (content.match(/^\d+\.\s/m)) {
+                  const lines = content.split(/\r?\n/);
+                  let inList = false;
+                  let result = '';
+                  
+                  for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    
+                    if (/^\s*\d+\.\s/.test(line)) {
+                      if (!inList) {
+                        result += '<ol>';
+                        inList = true;
+                      }
+                      result += '<li>' + line.replace(/^\s*\d+\.\s/, '') + '</li>';
+                    } else {
+                      if (inList) {
+                        result += '</ol>';
+                        inList = false;
+                      }
+                      result += line + '\n';
+                    }
+                  }
+                  
+                  if (inList) {
+                    result += '</ol>';
+                  }
+                  
+                  args.content = result;
+                }
+              }
             }}
           />
         </div>
