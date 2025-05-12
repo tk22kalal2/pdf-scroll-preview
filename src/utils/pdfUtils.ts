@@ -136,7 +136,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", // Keep current model
+        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
         messages: [
           {
             role: "system",
@@ -195,7 +195,7 @@ Here is the complete OCR text: ${ocrText}`
           }
         ],
         temperature: 0.7, // Adjusted for better balance between creativity and precision
-        max_tokens: 4000,  // Increased token limit to ensure complete coverage
+        max_tokens: 8000,  // Increased token limit to ensure complete coverage
       })
     });
     
