@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
 
@@ -530,13 +529,11 @@ function isBulletList(text: string): boolean {
   // Check for common bullet patterns:
   // - Lines starting with *, -, •, bullet, etc.
   // - Multiple consecutive lines with similar starting patterns
-  const bulletPatterns = [
-    /^\s*[•\*\-]\s+.+(\n\s*[•\*\-]\s+.+)+/m,  // Multiple bullet points
-    /^\s*[•\*\-]\s+.+/m && text.split("\n").filter(line => /^\s*[•\*\-]\s+/.test(line)).length > 1,
-    /\n\s*[•\*\-]\s+.+(\n\s*[•\*\-]\s+.+)+/m  // Bullets after initial text
-  ];
+  const bulletPattern1 = /^\s*[•\*\-]\s+.+(\n\s*[•\*\-]\s+.+)+/m;
+  const bulletPattern2 = text.split("\n").filter(line => /^\s*[•\*\-]\s+/.test(line)).length > 1;
+  const bulletPattern3 = /\n\s*[•\*\-]\s+.+(\n\s*[•\*\-]\s+.+)+/m;
   
-  return bulletPatterns.some(pattern => pattern.test(text));
+  return bulletPattern1.test(text) || bulletPattern2 || bulletPattern3.test(text);
 }
 
 /**
@@ -546,13 +543,11 @@ function isNumberedList(text: string): boolean {
   // Check for common numbered list patterns:
   // - Lines starting with numbers followed by period or parenthesis
   // - Sequential numbering
-  const numberedPatterns = [
-    /^\s*\d+[\.\)]\s+.+(\n\s*\d+[\.\)]\s+.+)+/m,  // Multiple numbered items
-    /^\s*\d+[\.\)]\s+.+/m && text.split("\n").filter(line => /^\s*\d+[\.\)]\s+/.test(line)).length > 1,
-    /\n\s*\d+[\.\)]\s+.+(\n\s*\d+[\.\)]\s+.+)+/m  // Numbers after initial text
-  ];
+  const numberedPattern1 = /^\s*\d+[\.\)]\s+.+(\n\s*\d+[\.\)]\s+.+)+/m;
+  const numberedPattern2 = text.split("\n").filter(line => /^\s*\d+[\.\)]\s+/.test(line)).length > 1;
+  const numberedPattern3 = /\n\s*\d+[\.\)]\s+.+(\n\s*\d+[\.\)]\s+.+)+/m;
   
-  return numberedPatterns.some(pattern => pattern.test(text));
+  return numberedPattern1.test(text) || numberedPattern2 || numberedPattern3.test(text);
 }
 
 /**
