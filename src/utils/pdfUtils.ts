@@ -67,9 +67,8 @@ FORMATTING REQUIREMENTS:
   * <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0);">Main Topic</span></span></h1>
   * <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157);">Sub-Topic</span></span></h2>
   * <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94);">Specific Point</span></span></h3>
-- HIGHLIGHT FIRST KEY WORD OR PHRASE/MAIN WORD of the sentance by wrapping it in <strong> tags
 - WRAP MAIN CONCEPTS of each paragraph in <strong> tags
-- HIGHLIGHT KEY TERMS with <strong> tags, especially technical terms, important processes, or critical concepts
+- HIGHLIGHT KEY TERMS with <strong> tags, especially first word, technical terms, important processes, or critical concepts
 
 
 MULTI-PAGE HANDLING:
