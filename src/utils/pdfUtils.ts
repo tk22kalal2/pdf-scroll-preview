@@ -195,7 +195,7 @@ Here is the complete OCR text: ${ocrText}`
           }
         ],
         temperature: 0.7, // Adjusted for better balance between creativity and precision
-        max_tokens: 8000,  // Increased token limit to ensure complete coverage
+        max_tokens: 4000,  // Increased token limit to ensure complete coverage
       })
     });
     
