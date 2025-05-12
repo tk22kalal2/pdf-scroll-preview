@@ -156,20 +156,73 @@ export function isPotentialHeading(text: string): boolean {
  * Highlights potential key terms in text
  */
 export function highlightKeyTerms(text: string): string {
-  // Highlight potential terms that look important
+  // Enhanced highlighting of key terms and main concepts
   const processed = text
     // Highlight terms that are ALL CAPS (likely important)
     .replace(/\b([A-Z]{2,})\b/g, '<strong>$1</strong>')
+    
     // Highlight terms that start with capital (potential proper nouns and key concepts)
     .replace(/\b([A-Z][a-z]{2,})\b/g, function(match) {
       // Skip common words that shouldn't be highlighted
-      const commonWords = ['The', 'This', 'That', 'These', 'Those', 'They', 'Their', 'Them', 'And', 'But', 'For', 'With', 'About'];
+      const commonWords = ['The', 'This', 'That', 'These', 'Those', 'They', 'Their', 'Them', 'And', 'But', 'For', 'With', 'About', 'When', 'Where', 'Which', 'Who', 'How', 'What', 'Why', 'While'];
       return commonWords.includes(match) ? match : '<strong>' + match + '</strong>';
     })
-    // Highlight potential numerical data
+    
+    // Highlight potential numerical data 
     .replace(/\b(\d+(?:\.\d+)?(?:%|\s*percent)?)\b/g, '<strong>$1</strong>')
+    
+    // Highlight medical/scientific terms
+    .replace(/\b([A-Za-z]+(?:ology|itis|ectomy|otomy|oscopy|oma|ase|gen)s?)\b/g, '<strong>$1</strong>')
+    
     // Highlight terms with special characters that might be important (like chemical formulas)
     .replace(/\b([A-Za-z]+[\-\_\+][A-Za-z0-9]+)\b/g, '<strong>$1</strong>');
   
   return processed;
 }
+
+/**
+ * Enhanced highlighting for sentences to mark main concepts
+ */
+export function highlightMainConcepts(text: string): string {
+  // Split text into sentences
+  const sentences = text.replace(/([.!?])\s+/g, "$1|").split("|");
+  
+  return sentences.map(sentence => {
+    if (sentence.trim().length === 0) return sentence;
+    
+    // Skip processing if sentence is already in a list or contains HTML
+    if (sentence.includes('<li>') || sentence.includes('<ul>') || 
+        sentence.includes('<ol>') || /^<\/?[a-z]/.test(sentence)) {
+      return sentence;
+    }
+    
+    // Find potential main concept phrases (3-4 word phrases) in each sentence
+    const mainConceptPattern = /\b([A-Za-z]+\s+[A-Za-z]+(?:\s+[A-Za-z]+){0,2})\b/g;
+    let matches = [...sentence.matchAll(mainConceptPattern)];
+    
+    // Find the most relevant phrases (longer ones tend to be more important)
+    if (matches.length > 0) {
+      // Sort by length (descending)
+      matches.sort((a, b) => b[1].length - a[1].length);
+      
+      // Take the top 1-2 matches based on sentence length
+      const numHighlights = sentence.length > 80 ? 2 : 1;
+      const topMatches = matches.slice(0, numHighlights);
+      
+      // Highlight each top match if not already highlighted
+      let processedSentence = sentence;
+      for (const match of topMatches) {
+        if (!processedSentence.includes(`<strong>${match[1]}</strong>`)) {
+          processedSentence = processedSentence.replace(
+            new RegExp(`\\b${match[1]}\\b`, 'g'), 
+            `<strong>${match[1]}</strong>`
+          );
+        }
+      }
+      return processedSentence;
+    }
+    
+    return sentence;
+  }).join(' ');
+}
+

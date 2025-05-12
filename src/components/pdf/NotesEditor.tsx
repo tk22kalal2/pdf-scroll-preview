@@ -55,7 +55,7 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
   const handleDownloadHTML = () => {
     const content = editorRef.current?.getContent() || notesContent;
     const blob = new Blob([
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Complete PDF Notes</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:20px;max-width:800px;margin:0 auto;}h1{color:rgb(71,0,0);}h2{color:rgb(26,1,157);}h3{color:rgb(52,73,94);}ul{margin-left:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;}th{background-color:#f2f2f2;}p{margin-bottom:12px;}li{margin-bottom:8px;}</style></head><body>' +
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Complete PDF Notes</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:20px;max-width:800px;margin:0 auto;}h1{color:rgb(71,0,0);}h2{color:rgb(26,1,157);}h3{color:rgb(52,73,94);}ul{margin-left:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;}th{background-color:#f2f2f2;}p{margin-bottom:12px;}li{margin-bottom:8px;}strong{font-weight:bold;}</style></head><body>' +
       content +
       '</body></html>'
     ], { type: "text/html" });
@@ -300,7 +300,7 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                   }
                 });
                 
-                // Fix list formatting issues when pasting content
+                // Fix list formatting issues when pasting content - SINGLE HANDLER
                 editor.on('PastePreProcess', function(e) {
                   let content = e.content;
                   
@@ -348,74 +348,8 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
               paste_webkit_styles: "color,font-size,font-family,background-color",
               paste_merge_formats: false,
               lists_indent_on_tab: true,
-              paste_as_text: false,
-              // Special handling for bullet points and lists
-              paste_preprocess: function(plugin, args) {
-                // Process content with bullet points (*) and convert to proper lists
-                let content = args.content;
-                
-                // Fix bullet points
-                if (content.includes('*') || content.includes('-') || content.includes('•')) {
-                  const lines = content.split(/\r?\n/);
-                  let inList = false;
-                  let result = '';
-                  
-                  for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    
-                    if (/^\s*[\*\-•]\s/.test(line)) {
-                      if (!inList) {
-                        result += '<ul>';
-                        inList = true;
-                      }
-                      result += '<li>' + line.replace(/^\s*[\*\-•]\s/, '') + '</li>';
-                    } else {
-                      if (inList) {
-                        result += '</ul>';
-                        inList = false;
-                      }
-                      result += line + '\n';
-                    }
-                  }
-                  
-                  if (inList) {
-                    result += '</ul>';
-                  }
-                  
-                  args.content = result;
-                }
-                
-                // Fix numbered lists
-                if (content.match(/^\d+\.\s/m)) {
-                  const lines = content.split(/\r?\n/);
-                  let inList = false;
-                  let result = '';
-                  
-                  for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i];
-                    
-                    if (/^\s*\d+\.\s/.test(line)) {
-                      if (!inList) {
-                        result += '<ol>';
-                        inList = true;
-                      }
-                      result += '<li>' + line.replace(/^\s*\d+\.\s/, '') + '</li>';
-                    } else {
-                      if (inList) {
-                        result += '</ol>';
-                        inList = false;
-                      }
-                      result += line + '\n';
-                    }
-                  }
-                  
-                  if (inList) {
-                    result += '</ol>';
-                  }
-                  
-                  args.content = result;
-                }
-              }
+              paste_as_text: false
+              // REMOVED duplicate paste_preprocess handler that was causing content to appear twice
             }}
           />
         </div>
