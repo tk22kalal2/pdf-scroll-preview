@@ -56,7 +56,7 @@ KEY RESPONSIBILITIES:
 
 CONTENT RULES:
 - Convert **existing bold markers** to <strong> tags (remove **)
-- Only highlight TECHNICAL TERMS and CORE CONCEPTS with <strong>
+- Only highlight MAIN TECHNICAL TERMS and CORE CONCEPTS of a sentance with <strong> tag
 - Never bold sentence starters or random words
 - Replace markdown with proper HTML:
   * "- " → <ul><li>
@@ -69,9 +69,8 @@ FORMATTING STANDARDS:
   <h2><span style="text-decoration: underline; color: #1a019d;">Sub-Topic</span></h2>
   <h3><span style="text-decoration: underline; color: #34495e;">Specific Point</span></h3>
 - <strong> tags ONLY for:
-  • Key technical terms
   • Fundamental concepts
-  • Critical numbers/dates
+  • Main concept or important word
 
 MULTI-PAGE HANDLING:
 - Smooth transitions between pages
