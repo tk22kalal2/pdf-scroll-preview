@@ -46,46 +46,47 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
       console.log(`Attempt ${retries + 1} of ${MAX_RETRIES + 1}: Using Groq API to generate notes`);
       
       // Optimized system prompt with clearer, non-redundant instructions
-      const systemPrompt = `You are a professional educator that creates detailed yet EASY-TO-UNDERSTAND notes from PDF text.
+      const systemPrompt = `You are a professional educator that creates CLEAR, ACCURATE notes from PDF text.
 
 KEY RESPONSIBILITIES:
-1. PRESERVE 100% OF CONTENT from the original PDF
-2. EXPLAIN everything in SIMPLE language that a 7th grader could understand
-3. FORMAT properly with special attention to lists and structure
-4. HIGHLIGHT KEY TERMS by wrapping important concepts in <strong> tags
+1. PRESERVE 100% OF CONTENT from original PDF
+2. EXPLAIN concepts at 7th grade reading level
+3. REMOVE REDUNDANT FORMATTING and fix OCR errors
+4. APPLY CONSISTENT HTML FORMATTING
 
-CONTENT GUIDELINES:
-- Include ALL information, facts, numbers, and details from the source
-- Add proper introductions to each topic explaining what it is and why it matters
-- Break complex ideas into simple explanations with everyday examples
-- Define ALL technical terms in plain language
-- Connect abstract concepts to real-world applications
+CONTENT RULES:
+- Convert **existing bold markers** to <strong> tags (remove **)
+- Only highlight TECHNICAL TERMS and CORE CONCEPTS with <strong>
+- Never bold sentence starters or random words
+- Replace markdown with proper HTML:
+  * "- " → <ul><li>
+  * Numbered items → <ol><li>
+- Remove duplicate formatting commands
 
-FORMATTING REQUIREMENTS:
-- Use proper HTML: <ul><li> for bullet lists, <ol><li> for numbered lists
-- Create clear section headings with proper HTML styling:
-  * <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0);">Main Topic</span></span></h1>
-  * <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157);">Sub-Topic</span></span></h2>
-  * <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94);">Specific Point</span></span></h3>
-- WRAP MAIN CONCEPTS of each paragraph in <strong> tags
-- HIGHLIGHT KEY TERMS with <strong> tags, especially main word of sentance, technical or important terms
-
+FORMATTING STANDARDS:
+- Clean HTML only (NO MARKDOWN):
+  <h1><span style="text-decoration: underline; color: #470000;">Main Topic</span></h1>
+  <h2><span style="text-decoration: underline; color: #1a019d;">Sub-Topic</span></h2>
+  <h3><span style="text-decoration: underline; color: #34495e;">Specific Point</span></h3>
+- <strong> tags ONLY for:
+  • Key technical terms (first occurrence)
+  • Fundamental concepts
+  • Critical numbers/dates
 
 MULTI-PAGE HANDLING:
-- Maintain complete continuity between pages
-- Ensure no information is lost at page transitions`;
+- Smooth transitions between pages
+- Maintain logical flow between sections`;
 
-      // Enhanced user prompt that's simpler and more direct
-      const userPrompt = `Create easy-to-understand notes from this PDF text. Make sure you:
-1. Keep 100% of the original content
-2. Explain everything simply (7th grade level)
-3. WRAP IMPORTANT CONCEPTS in <strong> tags
-4. Use proper HTML lists (<ul><li> for bullets, <ol><li> for numbered)
-5. Make each section build on fundamental concepts
+const userPrompt = `Transform this PDF text into student-friendly notes:
+1. Remove ** but keep bolded content as <strong>
+2. Simplify language (middle school level)
+3. Fix formatting errors and duplicates
+4. Use PROPER HTML LISTS
+5. Strategic bolding of key terms only
 
-This is ${isMultiPage ? 'a multi-page document' : 'a single-page document'}.
+This is ${isMultiPage ? 'a multi-page document' : 'single-page'}.
 
-Here is the complete OCR text: ${ocrText}`;
+OCR Text: ${ocrText}`;
 
       // Begin with toast notification
       toast.loading("Processing with Groq API - Creating comprehensive notes...", {
