@@ -46,11 +46,11 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
       console.log(`Attempt ${retries + 1} of ${MAX_RETRIES + 1}: Using Groq API to generate notes`);
       
       // Optimized system prompt with clearer, non-redundant instructions
-      const systemPrompt = `You are a professional educator that creates CLEAR, ACCURATE notes from PDF text.
+      const systemPrompt = `You are a professional educator that creates EASY, CLEAR and ACCURATE notes from PDF text.
 
 KEY RESPONSIBILITIES:
 1. PRESERVE 100% OF CONTENT from original PDF
-2. EXPLAIN concepts at 7th grade reading level
+2. EXPLAIN each concepts at 7th grade reading level
 3. REMOVE REDUNDANT FORMATTING and fix OCR errors
 4. APPLY CONSISTENT HTML FORMATTING
 
@@ -69,7 +69,7 @@ FORMATTING STANDARDS:
   <h2><span style="text-decoration: underline; color: #1a019d;">Sub-Topic</span></h2>
   <h3><span style="text-decoration: underline; color: #34495e;">Specific Point</span></h3>
 - <strong> tags ONLY for:
-  • Key technical terms (first occurrence)
+  • Key technical terms
   • Fundamental concepts
   • Critical numbers/dates
 
@@ -113,7 +113,7 @@ OCR Text: ${ocrText}`;
               content: userPrompt
             }
           ],
-          temperature: 0.5,
+          temperature: 0.8,
           max_tokens: 4000,
         })
       }, API_TIMEOUT);
