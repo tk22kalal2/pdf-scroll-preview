@@ -124,7 +124,7 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
  */
 export const generateNotesFromText = async (ocrText: string): Promise<NotesResult> => {
   try {
-    const GROQ_API_KEY = "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";
+    const GROQ_API_KEY = "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";
     const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
     
     console.log("Using Groq API to generate notes");
@@ -136,7 +136,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", // Keep current model
+        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
         messages: [
           {
             role: "system",
