@@ -124,8 +124,8 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
  */
 export const generateNotesFromText = async (ocrText: string): Promise<NotesResult> => {
   try {
-    const GROQ_API_KEY = "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";
-    const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+    const GROQ_API_KEY = "sk-b79ce62248a64eada40a8adb16ad3b0d";
+    const GROQ_API_URL = "https://api.deepseek.com/chat/completions";
     
     console.log("Using Groq API to generate notes");
     
@@ -136,7 +136,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", // Keep current model
+        model: "deepseek-chat", // Keep current model
         messages: [
           {
             role: "system",
@@ -194,7 +194,8 @@ REMEMBER: Your output MUST contain 100% of the information from the input text, 
 Here is the complete OCR text: ${ocrText}`
           }
         ],
-        temperature: 0.7, // Adjusted for better balance between creativity and precision
+        temperature: 0.7,
+        stream: false,// Adjusted for better balance between creativity and precision
         max_tokens: 4000,  // Increased token limit to ensure complete coverage
       })
     });
