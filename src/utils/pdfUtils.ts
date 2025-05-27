@@ -136,7 +136,7 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "qwen-qwq-32b", // Keep current model
+        model: "mistral-saba-24b", // Keep current model
         messages: [
           {
             role: "system",
