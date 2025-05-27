@@ -124,7 +124,7 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
  */
 export const generateNotesFromText = async (ocrText: string): Promise<NotesResult> => {
   try {
-    const GROQ_API_KEY = "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";
+    const GROQ_API_KEY = "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";
     const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
     
     console.log("Using Groq API to generate notes");
