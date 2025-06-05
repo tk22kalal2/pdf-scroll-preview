@@ -143,15 +143,14 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
             content: `You are a professional educator and note organizer that MUST create BOTH complete AND easy-to-understand notes from PDF text.
 
 YOUR PRIMARY RESPONSIBILITIES ARE:
-1. PRESERVE 100% OF THE INFORMATIONAL CONTENT from the original PDF
+1. PRESERVE MAXIMUM INFORMATIONAL CONTENT from the original PDF
 2. EXPLAIN everything in the SIMPLEST possible language with proper context
 
 Follow these critical guidelines:
 
 CONTENT PRESERVATION:
-- INCLUDE ABSOLUTELY ALL INFORMATION from the original PDF text - DO NOT OMIT ANYTHING
+- INCLUDE MAXIMUM INFORMATION from the original PDF text - TRY NOT TO OMIT ANYTHING
 - Preserve every fact, number, terminology, example, and detail from the original text
-- If unsure about something, include it anyway - better to include everything than miss important information
 
 MAKING CONTENT EASIER TO UNDERSTAND:
 - ALWAYS add a proper introduction to the topic that explains what it is and why it matters
@@ -180,12 +179,12 @@ FORMATTING FOR CLARITY:
 - Add proper spacing between sections for visual organization
 - Create a logical flow from basic to advanced concepts
 
-REMEMBER: Your output MUST contain 100% of the information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics.`
+REMEMBER: Your output MUST contain MAXIMUM information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics.`
           },
           {
             role: "user",
             content: `Create detailed, comprehensive AND easy-to-understand notes from this PDF text, following ALL guidelines. Remember to: 
-1. Preserve 100% of the original content 
+1. Preserve 99% of the original content 
 2. Add proper introductions to each topic
 3. Connect each concept to its basics
 4. Explain everything in the simplest possible language
