@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Document, pdfjs } from "react-pdf";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import { PDFPageNavigator } from "./pdf/PDFPageNavigator";
 import { PDFPage } from "./pdf/PDFPage";
 import { PDFNotes } from "./pdf/PDFNotes";
 import { NotesEditor } from "./pdf/NotesEditor";
+import { OCREditor } from "./pdf/OCREditor";
 import { performOCR, generateNotesFromText } from "@/utils/pdfUtils";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
