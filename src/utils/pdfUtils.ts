@@ -141,28 +141,42 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         messages: [
           {
             role: "system",
-            content: `You are an expert note creator. Create complete HTML-formatted notes from PDF text.
+            content: `You are an expert note creator. Create complete HTML-formatted notes from PDF text with proper three-level list structures.
 
 RULES:
 1. Use ONLY HTML formatting (no Markdown)
 2. Include ALL information from the PDF
 3. Use simple language (7th grade level)
 4. Wrap key terms and main concepts in <strong> tags
-5. Use proper HTML structure
+5. Use proper HTML structure with three-level lists
 
 FORMATTING:
 - Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Title</span></span></h1>
 - Section headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Section</span></span></h2>
 - Sub-headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Sub-section</span></span></h3>
 - Paragraphs: <p>Content with <strong>key terms</strong></p>
-- Lists: <ul><li>Item with <strong>important points</strong></li></ul>
-- Add proper spacing between sections
 
-Make everything easy to understand while keeping all original information.`
+THREE-LEVEL BULLET LISTS:
+- Level 1: <ul><li>Main point with <strong>key terms</strong></li></ul>
+- Level 2: <ul><li>Main point<ul><li>Sub-point with details</li></ul></li></ul>
+- Level 3: <ul><li>Main point<ul><li>Sub-point<ul><li>Detailed sub-point</li></ul></li></ul></li></ul>
+
+THREE-LEVEL NUMBERED LISTS:
+- Level 1: <ol><li>First main item with <strong>key terms</strong></li></ol>
+- Level 2: <ol><li>Main item<ol><li>Sub-item with details</li></ol></li></ol>
+- Level 3: <ol><li>Main item<ol><li>Sub-item<ol><li>Detailed sub-item</li></ol></li></ol></li></ol>
+
+WHEN TO USE LISTS:
+- Use bullet lists for related items, features, symptoms, characteristics
+- Use numbered lists for procedures, steps, chronological events, rankings
+- Create three levels when content has main points, sub-points, and details
+- Always highlight important terms within list items using <strong> tags
+
+Add proper spacing between sections and ensure all content is preserved.`
           },
           {
             role: "user",
-            content: `Create detailed HTML notes from this PDF text: ${ocrText}`
+            content: `Create detailed HTML notes with proper three-level list formatting from this PDF text: ${ocrText}`
           }
         ],
         temperature: 0.3,
