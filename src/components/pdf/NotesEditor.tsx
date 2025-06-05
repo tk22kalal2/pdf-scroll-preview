@@ -55,7 +55,7 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
   const handleDownloadHTML = () => {
     const content = editorRef.current?.getContent() || notesContent;
     const blob = new Blob([
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Complete PDF Notes</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:20px;max-width:800px;margin:0 auto;}h1{color:rgb(71,0,0);}h2{color:rgb(26,1,157);}h3{color:rgb(52,73,94);}ul{margin-left:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;}th{background-color:#f2f2f2;}p{margin-bottom:12px;}li{margin-bottom:8px;}strong{font-weight:bold;}</style></head><body>' +
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Complete PDF Notes</title><style>body{font-family:Arial,sans-serif;line-height:1.6;margin:20px;max-width:800px;margin:0 auto;}h1{color:rgb(71,0,0);}h2{color:rgb(26,1,157);}h3{color:rgb(52,73,94);}ul{margin-left:20px;}ol{margin-left:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ddd;padding:8px;}th{background-color:#f2f2f2;}p{margin-bottom:12px;}li{margin-bottom:8px;}strong{font-weight:bold;}ul ul{list-style-type:circle;}ul ul ul{list-style-type:square;}ol ol{list-style-type:lower-alpha;}ol ol ol{list-style-type:lower-roman;}</style></head><body>' +
       content +
       '</body></html>'
     ], { type: "text/html" });
@@ -166,6 +166,10 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                 'bold italic forecolor | alignleft aligncenter ' +
                 'alignright alignjustify | bullist numlist outdent indent | ' +
                 'removeformat | image table link | help',
+              // Advanced list configuration for three levels
+              advlist_bullet_styles: 'disc,circle,square',
+              advlist_number_styles: 'decimal,lower-alpha,lower-roman',
+              lists_indent_on_tab: true,
               content_style: `
                 body { 
                   font-family: Helvetica, Arial, sans-serif; 
@@ -229,6 +233,8 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                 th { 
                   background-color: #f2f2f2; 
                 }
+                
+                /* Three-level bullet point system */
                 ul, ol { 
                   margin-left: 20px; 
                   margin-bottom: 16px; 
@@ -236,13 +242,49 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                 }
                 li {
                   margin-bottom: 8px;
+                  line-height: 1.4;
                 }
+                
+                /* First level bullets - disc */
                 ul li {
                   list-style-type: disc;
                 }
+                
+                /* Second level bullets - circle */
+                ul ul li {
+                  list-style-type: circle;
+                  margin-left: 20px;
+                }
+                
+                /* Third level bullets - square */
+                ul ul ul li {
+                  list-style-type: square;
+                  margin-left: 20px;
+                }
+                
+                /* First level numbers - decimal */
                 ol li {
                   list-style-type: decimal;
                 }
+                
+                /* Second level numbers - lower-alpha */
+                ol ol li {
+                  list-style-type: lower-alpha;
+                  margin-left: 20px;
+                }
+                
+                /* Third level numbers - lower-roman */
+                ol ol ol li {
+                  list-style-type: lower-roman;
+                  margin-left: 20px;
+                }
+                
+                /* Nested list spacing */
+                ul ul, ol ol, ul ol, ol ul {
+                  margin-top: 5px;
+                  margin-bottom: 5px;
+                }
+                
                 img { 
                   max-width: 100%; 
                   height: auto; 
@@ -263,7 +305,14 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                 h2: { block: 'h2', styles: { 'margin-top': '20px', 'margin-bottom': '12px' } },
                 h3: { block: 'h3', styles: { 'margin-top': '16px', 'margin-bottom': '10px' } },
                 bold: { inline: 'strong' },
-                italic: { inline: 'em' }
+                italic: { inline: 'em' },
+                // Custom list formats for better control
+                'bullist-disc': { selector: 'ul', styles: { 'list-style-type': 'disc' } },
+                'bullist-circle': { selector: 'ul', styles: { 'list-style-type': 'circle' } },
+                'bullist-square': { selector: 'ul', styles: { 'list-style-type': 'square' } },
+                'numlist-decimal': { selector: 'ol', styles: { 'list-style-type': 'decimal' } },
+                'numlist-alpha': { selector: 'ol', styles: { 'list-style-type': 'lower-alpha' } },
+                'numlist-roman': { selector: 'ol', styles: { 'list-style-type': 'lower-roman' } }
               },
               // Ensure we handle images properly
               images_upload_handler: imageUploadHandler,
@@ -292,7 +341,7 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                 }
               },
               setup: function(editor) {
-                // Add a custom button to reset notes if viewing raw OCR
+                // Add custom buttons for list management
                 editor.ui.registry.addButton('resetNotes', {
                   text: 'Reset Notes',
                   onAction: function() {
@@ -300,25 +349,117 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                   }
                 });
                 
-                // Fix list formatting issues when pasting content - SINGLE HANDLER
+                // Add custom button for creating three-level bullet lists
+                editor.ui.registry.addSplitButton('customBullets', {
+                  text: 'Bullet Lists',
+                  tooltip: 'Insert bullet list with multiple levels',
+                  onAction: function() {
+                    // Insert a basic bullet list
+                    editor.execCommand('InsertUnorderedList');
+                  },
+                  onItemAction: function(api, value) {
+                    if (value === 'disc') {
+                      editor.execCommand('InsertUnorderedList');
+                    } else if (value === 'circle') {
+                      editor.execCommand('Indent');
+                    } else if (value === 'square') {
+                      editor.execCommand('Indent');
+                      editor.execCommand('Indent');
+                    }
+                  },
+                  fetch: function(callback) {
+                    const items = [
+                      {
+                        type: 'choiceitem',
+                        value: 'disc',
+                        text: 'Level 1 (•)'
+                      },
+                      {
+                        type: 'choiceitem', 
+                        value: 'circle',
+                        text: 'Level 2 (○)'
+                      },
+                      {
+                        type: 'choiceitem',
+                        value: 'square',
+                        text: 'Level 3 (■)'
+                      }
+                    ];
+                    callback(items);
+                  }
+                });
+                
+                // Add custom button for creating three-level numbered lists
+                editor.ui.registry.addSplitButton('customNumbers', {
+                  text: 'Number Lists',
+                  tooltip: 'Insert numbered list with multiple levels',
+                  onAction: function() {
+                    // Insert a basic numbered list
+                    editor.execCommand('InsertOrderedList');
+                  },
+                  onItemAction: function(api, value) {
+                    if (value === 'decimal') {
+                      editor.execCommand('InsertOrderedList');
+                    } else if (value === 'alpha') {
+                      editor.execCommand('Indent');
+                    } else if (value === 'roman') {
+                      editor.execCommand('Indent');
+                      editor.execCommand('Indent');
+                    }
+                  },
+                  fetch: function(callback) {
+                    const items = [
+                      {
+                        type: 'choiceitem',
+                        value: 'decimal',
+                        text: 'Level 1 (1, 2, 3)'
+                      },
+                      {
+                        type: 'choiceitem',
+                        value: 'alpha', 
+                        text: 'Level 2 (a, b, c)'
+                      },
+                      {
+                        type: 'choiceitem',
+                        value: 'roman',
+                        text: 'Level 3 (i, ii, iii)'
+                      }
+                    ];
+                    callback(items);
+                  }
+                });
+                
+                // Enhanced keyboard shortcuts for list management
+                editor.addShortcut('Ctrl+Shift+L', 'Create bullet list', function() {
+                  editor.execCommand('InsertUnorderedList');
+                });
+                
+                editor.addShortcut('Ctrl+Shift+N', 'Create numbered list', function() {
+                  editor.execCommand('InsertOrderedList');
+                });
+                
+                // Fix list formatting issues when pasting content
                 editor.on('PastePreProcess', function(e) {
                   let content = e.content;
                   
-                  // Convert bullet points to proper list elements
+                  // Convert bullet points to proper list elements with three levels
                   if (content.includes('*') || content.includes('-') || content.includes('•')) {
-                    content = content.replace(/(\*|\-|•)\s+([^*\-•<]+)(<br>|$)/g, '<li>$2</li>');
+                    // Handle different indentation levels
+                    content = content.replace(/^(\s{0,2})[\*\-•]\s+(.+)$/gm, '<li style="list-style-type: disc;">$2</li>');
+                    content = content.replace(/^(\s{3,5})[\*\-•]\s+(.+)$/gm, '<li style="list-style-type: circle; margin-left: 20px;">$2</li>');
+                    content = content.replace(/^(\s{6,})[\*\-•]\s+(.+)$/gm, '<li style="list-style-type: square; margin-left: 40px;">$2</li>');
                     
-                    // Wrap consecutive list items in ul tags
                     if (content.includes('<li>')) {
                       content = '<ul>' + content + '</ul>';
-                      // Fix nested lists
                       content = content.replace(/<\/ul><ul>/g, '');
                     }
                   }
                   
-                  // Convert numbered lists
-                  if (content.match(/\d+\.\s+/)) {
-                    content = content.replace(/(\d+)\.\s+([^<]+)(<br>|$)/g, '<li>$2</li>');
+                  // Convert numbered lists with three levels
+                  if (content.match(/^\s*\d+\.\s+/m)) {
+                    content = content.replace(/^(\s{0,2})(\d+)\.\s+(.+)$/gm, '<li style="list-style-type: decimal;">$3</li>');
+                    content = content.replace(/^(\s{3,5})([a-z])\.\s+(.+)$/gm, '<li style="list-style-type: lower-alpha; margin-left: 20px;">$3</li>');
+                    content = content.replace(/^(\s{6,})(i{1,3}|iv|v|vi{1,3}|ix|x)\.\s+(.+)$/gm, '<li style="list-style-type: lower-roman; margin-left: 40px;">$3</li>');
                     
                     if (content.includes('<li>') && !content.includes('<ul>')) {
                       content = '<ol>' + content + '</ol>';
@@ -329,7 +470,7 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
                   e.content = content;
                 });
               },
-              // Ensure proper handling of HTML formatting
+              // Enhanced configuration for better list handling
               extended_valid_elements: "img[class|src|border=0|alt|title|hspace|vspace|width|height|align|onmouseover|onmouseout|name],h1[*],h2[*],h3[*],h4[*],h5[*],h6[*],strong[*],span[*],div[*],p[*],ul[*],ol[*],li[*],table[*],tr[*],td[*],th[*],pre[*],code[*]",
               valid_elements: '*[*]',
               entity_encoding: 'raw',
@@ -344,12 +485,10 @@ export const NotesEditor = ({ notes, ocrText, onReturn }: NotesEditorProps) => {
               indent_margin: true,
               paste_enable_default_filters: true,
               paste_word_valid_elements: "b,strong,i,em,h1,h2,h3,h4,h5,h6,p,ul,ol,li,table,tr,td,th,div,span,pre,code",
-              paste_retain_style_properties: "color,font-size,font-family,background-color",
-              paste_webkit_styles: "color,font-size,font-family,background-color",
+              paste_retain_style_properties: "color,font-size,font-family,background-color,list-style-type,margin-left",
+              paste_webkit_styles: "color,font-size,font-family,background-color,list-style-type,margin-left",
               paste_merge_formats: false,
-              lists_indent_on_tab: true,
               paste_as_text: false
-              // REMOVED duplicate paste_preprocess handler that was causing content to appear twice
             }}
           />
         </div>
