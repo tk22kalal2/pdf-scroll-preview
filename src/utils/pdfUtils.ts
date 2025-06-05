@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
 
@@ -136,66 +137,36 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct", // Keep current model
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
         messages: [
           {
             role: "system",
-            content: `You are a professional educator and note organizer that MUST create BOTH complete AND easy-to-understand notes from PDF text.
+            content: `You are an expert note creator. Create complete HTML-formatted notes from PDF text.
 
-YOUR PRIMARY RESPONSIBILITIES ARE:
-1. PRESERVE MAXIMUM INFORMATIONAL CONTENT from the original PDF
-2. EXPLAIN everything in the SIMPLEST possible language with proper context
+RULES:
+1. Use ONLY HTML formatting (no Markdown)
+2. Include ALL information from the PDF
+3. Use simple language (7th grade level)
+4. Wrap key terms and main concepts in <strong> tags
+5. Use proper HTML structure
 
-Follow these critical guidelines:
+FORMATTING:
+- Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Title</span></span></h1>
+- Section headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Section</span></span></h2>
+- Sub-headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Sub-section</span></span></h3>
+- Paragraphs: <p>Content with <strong>key terms</strong></p>
+- Lists: <ul><li>Item with <strong>important points</strong></li></ul>
+- Add proper spacing between sections
 
-CONTENT PRESERVATION:
-- INCLUDE MAXIMUM INFORMATION from the original PDF text - TRY NOT TO OMIT ANYTHING
-- Preserve every fact, number, terminology, example, and detail from the original text
-
-MAKING CONTENT EASIER TO UNDERSTAND:
-- ALWAYS add a proper introduction to the topic that explains what it is and why it matters
-- Connect each concept to basic fundamentals that a beginner would understand
-- Break complex ideas into simple explanations with everyday analogies
-- Define ALL technical terms or jargon in simple language
-- Expand abbreviations and acronyms and explain what they mean
-- Break long sentences into multiple short ones for better readability
-- Use very simple vocabulary that a 7th grade student could understand
-- Add helpful examples for difficult concepts
-- Relate abstract concepts to real-world applications whenever possible
-- Use cause-and-effect explanations to show relationships between ideas
-
-FORMATTING FOR CLARITY:
-- Organize content logically with clear hierarchy
-- Use proper HTML formatting to enhance readability
-- Wrap main concepts of each paragraph in <strong> tags
-- Use bullet points (<ul><li>) with proper spacing between points for clarity
-- Use numbered lists (<ol><li>) for sequential steps or processes
-- Create tables (<table> tags) for comparative information
-- Use clear section headings with proper HTML styling:
-  * Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Main Topic</span></span></h1>
-  * Secondary headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Sub-Topic</span></span></h2>
-  * Tertiary headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Specific Point</span></span></h3>
-- Ensure all HTML tags are properly closed and nested
-- Add proper spacing between sections for visual organization
-- Create a logical flow from basic to advanced concepts
-
-REMEMBER: Your output MUST contain MAXIMUM information from the input text, reorganized into an easy-to-understand format with proper introductions, context, and explanations that connect each concept to its basics.`
+Make everything easy to understand while keeping all original information.`
           },
           {
             role: "user",
-            content: `Create detailed, comprehensive AND easy-to-understand notes from this PDF text, following ALL guidelines. Remember to: 
-1. Preserve 99% of the original content 
-2. Add proper introductions to each topic
-3. Connect each concept to its basics
-4. Explain everything in the simplest possible language
-5. Include helpful examples and real-world applications
-
-Here is the complete OCR text: ${ocrText}`
+            content: `Create detailed HTML notes from this PDF text: ${ocrText}`
           }
         ],
-        temperature: 0.7,
-        stream: false,// Adjusted for better balance between creativity and precision
-        max_tokens: 4000,  // Increased token limit to ensure complete coverage
+        temperature: 0.3,
+        max_tokens: 4000,
       })
     });
     
@@ -208,153 +179,97 @@ Here is the complete OCR text: ${ocrText}`
     const data = await response.json();
     const notes = data.choices[0].message.content;
     
-    // Verify we have valid formatted notes
     if (!notes || notes.trim().length === 0) {
       throw new Error("Empty response from Groq API");
     }
     
-    // Check if the notes are significantly shorter than the OCR text (potential content loss)
-    if (notes.length < ocrText.length * 0.7) {
-      console.warn("Warning: Generated notes appear to be significantly shorter than the source text");
-      // Still proceed, but with a warning
-      toast.warning("Notes may not contain all information from the PDF. Consider reviewing the original text.", {
-        duration: 5000,
-        position: "top-right"
-      });
-    }
+    // Clean and validate HTML formatting
+    const cleanedNotes = cleanHtmlFormatting(notes);
     
-    // Sanitize the notes to ensure valid HTML
-    const sanitizedNotes = sanitizeHtml(notes);
-    
-    return { notes: sanitizedNotes };
+    return { notes: cleanedNotes };
     
   } catch (error) {
     console.error("Groq API Error:", error);
-    toast.error("Failed to generate complete notes. Falling back to raw OCR text formatting.", {
-      duration: 5000,
+    toast.error("Failed to generate notes. Using fallback formatting.", {
+      duration: 3000,
       position: "top-right"
     });
     
-    // Create a better fallback that preserves ALL original text
-    const createFormattedNotes = (text: string) => {
-      // Start with a header explaining this is fallback formatting
-      let formattedHtml = `
-        <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete PDF Content (API Processing Failed)</span></span></h1>
-        <p>Below is the <strong>complete text</strong> extracted from your PDF with minimal formatting.</p>
-      `;
-      
-      // Extract pages and preserve ALL content
-      const pages = text.split('\n\n').filter(page => page.trim().startsWith('Page'));
-      
-      // If no pages were found, just format the entire text
-      if (pages.length === 0) {
-        const paragraphs = text.split('\n\n').filter(p => p.trim().length > 0);
-        
-        paragraphs.forEach(paragraph => {
-          if (paragraph.trim().length > 0) {
-            formattedHtml += `<p>${paragraph.trim()}</p>\n`;
-          }
-        });
-        
-        return formattedHtml;
-      }
-      
-      // Process each page to preserve ALL content
-      pages.forEach(page => {
-        const pageLines = page.split('\n');
-        const pageTitle = pageLines[0].trim();
-        // Join all remaining lines to ensure no content is lost
-        const pageContent = pageLines.slice(1).join(' ').trim();
-        
-        // Add page title as h2
-        formattedHtml += `
-          <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">${pageTitle}</span></span></h2>
-        `;
-        
-        // Preserve ALL content by creating paragraphs at natural break points
-        // This ensures no content is skipped or lost
-        const paragraphs = pageContent.split(/(?:\.|\?|\!)(?:\s+|\n)/g)
-          .filter(p => p.trim().length > 0)
-          .map(p => p.trim() + '.');
-        
-        if (paragraphs.length > 0) {
-          paragraphs.forEach(paragraph => {
-            if (paragraph.trim().length > 0) {
-              // Highlight potential key terms
-              const processed = paragraph
-                .replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>')
-                .trim();
-                
-              formattedHtml += `<p>${processed}</p>\n`;
-            }
-          });
-        } else {
-          // If no paragraphs were detected, preserve the raw content to ensure nothing is lost
-          formattedHtml += `<p>${pageContent}</p>\n`;
-        }
-      });
-      
-      return formattedHtml;
-    };
-    
-    return { notes: createFormattedNotes(ocrText) };
+    // Enhanced fallback formatting
+    return { notes: createFallbackHtmlNotes(ocrText) };
   }
 };
 
 /**
- * Helper function to sanitize HTML and ensure it's valid for TinyMCE
+ * Creates fallback HTML notes when API fails
  */
-function sanitizeHtml(html: string): string {
-  // Apply formatting similar to the provided template logic
-  let sanitized = html
-    // Ensure proper line breaks after closing tags for better readability
-    .replace(/<\/(h[1-3])>/g, '</$1>\n\n')
-    .replace(/<\/(ul|ol)>/g, '</$1>\n')
-    
-    // Fix spacing issues and ensure proper paragraph breaks
-    .replace(/>\s+</g, '>\n<')
-    
-    // Fix nested lists by ensuring proper closing tags
-    .replace(/<\/li><li>/g, '</li>\n<li>')
-    .replace(/<\/li><\/ul>/g, '</li>\n</ul>')
-    .replace(/<\/li><\/ol>/g, '</li>\n</ol>')
-    
-    // Fix potential unclosed strong tags
-    .replace(/<strong>([^<]*)<strong>/g, '<strong>$1</strong>')
-    
-    // Fix nested strong tags
-    .replace(/<strong>([^<]*)<strong>([^<]*)<\/strong>([^<]*)<\/strong>/g, '<strong>$1$2$3</strong>')
-    
-    // Make sure headings have both opening and closing tags
-    .replace(/<h([1-6])([^>]*)>([^<]*)/gi, (match, level, attrs, content) => {
-      if (!content.trim()) return match;
-      return `<h${level}${attrs}>${content}`;
-    })
-    
-    // Clean up whitespace
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/ +/g, ' ')
-    
-    // Ensure each paragraph has proper spacing
-    .replace(/<p>/g, '\n<p>')
-    .replace(/<\/p>/g, '</p>\n')
-    
-    // Clean up bullet points for consistent formatting
-    .replace(/<ul><li>/g, '\n<ul>\n<li>')
-    .replace(/<\/li><\/ul>/g, '</li>\n</ul>\n')
-    
-    // Clean up ordered lists for consistent formatting
-    .replace(/<ol><li>/g, '\n<ol>\n<li>')
-    .replace(/<\/li><\/ol>/g, '</li>\n</ol>\n')
-    
-    // Ensure headings are properly formatted according to the template
-    .replace(/<h1>([^<]+)<\/h1>/g, '<h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">$1</span></span></h1>')
-    .replace(/<h2>([^<]+)<\/h2>/g, '<h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">$1</span></span></h2>')
-    .replace(/<h3>([^<]+)<\/h3>/g, '<h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">$1</span></span></h3>')
-    
-    // Fix any double-decorated headings
-    .replace(/<h([1-3])><span style="text-decoration: underline;"><span style="color: rgb\([^)]+\); text-decoration: underline;">(<span style="text-decoration: underline;"><span style="color: rgb\([^)]+\); text-decoration: underline;">[^<]+<\/span><\/span>)<\/span><\/span><\/h\1>/g, 
-             '<h$1>$2</h$1>');
+function createFallbackHtmlNotes(ocrText: string): string {
+  let html = `<h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Complete PDF Content</span></span></h1>`;
+  
+  // Split into pages if multiple pages exist
+  const pages = ocrText.split(/Page \d+:/g).filter(page => page.trim().length > 0);
+  
+  if (pages.length > 1) {
+    pages.forEach((pageContent, index) => {
+      if (index === 0 && pageContent.trim().length === 0) return; // Skip empty first split
+      
+      html += `<h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Page ${index + 1}</span></span></h2>`;
+      html += formatPageContent(pageContent.trim());
+    });
+  } else {
+    html += formatPageContent(ocrText);
+  }
+  
+  return html;
+}
 
-  return sanitized;
+/**
+ * Formats page content into proper HTML
+ */
+function formatPageContent(content: string): string {
+  // Split into paragraphs
+  const paragraphs = content.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  let html = '';
+  
+  paragraphs.forEach(paragraph => {
+    const trimmed = paragraph.trim();
+    if (!trimmed) return;
+    
+    // Check if it's a potential heading (short line, no punctuation at end)
+    if (trimmed.length < 60 && !trimmed.endsWith('.') && !trimmed.endsWith(',')) {
+      html += `<h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">${trimmed}</span></span></h3>`;
+    } else {
+      // Regular paragraph - highlight potential key terms
+      const highlighted = trimmed.replace(/\b([A-Z][a-z]{2,}|[A-Z]{2,})\b/g, '<strong>$1</strong>');
+      html += `<p>${highlighted}</p>`;
+    }
+  });
+  
+  return html;
+}
+
+/**
+ * Cleans and validates HTML formatting for TinyMCE
+ */
+function cleanHtmlFormatting(html: string): string {
+  return html
+    // Remove any markdown syntax that might have slipped through
+    .replace(/##\s+/g, '')
+    .replace(/###\s+/g, '')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    
+    // Ensure proper spacing after headings
+    .replace(/<\/(h[1-6])>/g, '</$1>\n\n')
+    .replace(/<\/(p|ul|ol)>/g, '</$1>\n')
+    
+    // Clean up extra whitespace
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\s+/g, ' ')
+    
+    // Ensure proper paragraph structure
+    .replace(/^(?!<[h|u|o|p])/gm, '<p>')
+    .replace(/(?<!>)$/gm, '</p>')
+    .replace(/<p><\/p>/g, '')
+    .replace(/<p>(<[h|u|o])/g, '$1')
+    .replace(/(<\/[h|u|o][^>]*>)<\/p>/g, '$1');
 }
