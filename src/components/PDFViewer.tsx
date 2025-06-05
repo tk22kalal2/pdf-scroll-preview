@@ -11,7 +11,8 @@ import { PDFPage } from "./pdf/PDFPage";
 import { PDFNotes } from "./pdf/PDFNotes";
 import { NotesEditor } from "./pdf/NotesEditor";
 import { OCREditor } from "./pdf/OCREditor";
-import { performOCR, generateNotesFromText } from "@/utils/pdfUtils";
+import { performOCR } from "@/utils/pdfOCR";
+import { generateNotesFromText } from "@/utils/pdfUtils";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
@@ -29,9 +30,11 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loadedPages, setLoadedPages] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState("");
-  const [ocrText, setOcrText] = useState(""); // Store OCR text for the chatbot
+  const [ocrText, setOcrText] = useState("");
   const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [isProcessingOCR, setIsProcessingOCR] = useState(false);
   const [isProcessingNotes, setIsProcessingNotes] = useState(false);
+  const [showingOCREditor, setShowingOCREditor] = useState(false);
   const [showingNotes, setShowingNotes] = useState(false);
 
   useEffect(() => {
@@ -135,125 +138,151 @@ export const PDFViewer = ({ file }: PDFViewerProps) => {
     setCurrentPage(targetPage);
   };
 
-  const handleGenerateNotes = async () => {
+  const handleGenerateOCR = async () => {
     if (!isSplit || splitPdfPages.length === 0) {
-      toast.error("Please split the PDF first before generating notes", { duration: 3000 });
+      toast.error("Please split the PDF first before extracting text", { duration: 3000 });
       return;
     }
 
-    setIsProcessingNotes(true);
+    setIsProcessingOCR(true);
     
-    // Use dismiss ID to manually dismiss the loading toast when complete
-    const loadingToastId = toast.loading("Extracting text from PDF...");
+    const loadingToastId = toast.loading("Extracting text from PDF pages...");
 
     try {
-      // Step 1: Perform OCR on the split PDF pages
       const ocrResult = await performOCR(file, splitPdfPages);
-      
-      // Save the OCR text for the chatbot
       setOcrText(ocrResult.text);
+      setShowingOCREditor(true);
       
-      // Dismiss previous toast and show new one
       toast.dismiss(loadingToastId);
-      const processingToastId = toast.loading("Generating detailed notes from extracted text...");
+      toast.success("Text extracted successfully! Review and edit before generating notes.", { duration: 3000 });
+    } catch (error) {
+      console.error("OCR extraction error:", error);
+      toast.dismiss(loadingToastId);
+      toast.error("Failed to extract text. Please try again.", { duration: 3000 });
+    } finally {
+      setIsProcessingOCR(false);
+    }
+  };
 
-      // Step 2: Send OCR text to Groq API to generate notes
-      const notesResult = await generateNotesFromText(ocrResult.text);
-      
-      // Step 3: Display the generated notes in TinyMCE editor
+  const handleOCRSave = async (editedText: string) => {
+    setOcrText(editedText);
+    setShowingOCREditor(false);
+    setIsProcessingNotes(true);
+    
+    const processingToastId = toast.loading("Generating detailed notes from your text...");
+
+    try {
+      const notesResult = await generateNotesFromText(editedText);
       setNotes(notesResult.notes);
       setShowingNotes(true);
       
-      // Dismiss all loading toasts and show success
       toast.dismiss(processingToastId);
       toast.success("Detailed notes generated successfully", { duration: 2000 });
     } catch (error) {
       console.error("Notes generation error:", error);
-      toast.dismiss(loadingToastId);
+      toast.dismiss(processingToastId);
       toast.error("Failed to generate notes. Please try again.", { duration: 3000 });
     } finally {
       setIsProcessingNotes(false);
     }
+  };
+
+  const handleBackFromOCR = () => {
+    setShowingOCREditor(false);
   };
   
   const handleReturnToPdf = () => {
     setShowingNotes(false);
   };
 
+  // Show OCR Editor
+  if (showingOCREditor) {
+    return (
+      <OCREditor 
+        ocrText={ocrText}
+        onSave={handleOCRSave}
+        onBack={handleBackFromOCR}
+        isProcessing={isProcessingNotes}
+      />
+    );
+  }
+
+  // Show Notes Editor
+  if (showingNotes) {
+    return (
+      <NotesEditor 
+        notes={notes} 
+        ocrText={ocrText} 
+        onReturn={handleReturnToPdf} 
+      />
+    );
+  }
+
+  // Show PDF Viewer
   return (
     <div className="relative bg-white rounded-lg shadow-lg">
       <div className="flex items-center justify-between p-4 border-b">
         <PDFControls
-          isLoading={isLoading || isProcessingNotes}
+          isLoading={isLoading || isProcessingOCR}
           numPages={numPages}
           onSplit={handleSplit}
           onDownload={handleDownload}
-          onGenerateNotes={handleGenerateNotes}
+          onGenerateNotes={handleGenerateOCR}
           isSplit={isSplit}
         />
       </div>
       
-      {showingNotes ? (
-        <NotesEditor 
-          notes={notes} 
-          ocrText={ocrText} 
-          onReturn={handleReturnToPdf} 
-        />
-      ) : (
-        <>
-          <div 
-            ref={containerRef}
-            className="max-h-[85vh] overflow-y-auto px-4 relative"
-            style={{ height: '85vh' }}
+      <div 
+        ref={containerRef}
+        className="max-h-[85vh] overflow-y-auto px-4 relative"
+        style={{ height: '85vh' }}
+      >
+        <Document
+          file={file}
+          onLoadSuccess={onDocumentLoadSuccess}
+          onLoadError={() => toast.error("Error loading PDF")}
+          loading={<div className="text-center py-4">Loading PDF...</div>}
+          className="flex flex-col items-center"
+        >
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
           >
-            <Document
-              file={file}
-              onLoadSuccess={onDocumentLoadSuccess}
-              onLoadError={() => toast.error("Error loading PDF")}
-              loading={<div className="text-center py-4">Loading PDF...</div>}
-              className="flex flex-col items-center"
-            >
-              <div
-                style={{
-                  height: `${virtualizer.getTotalSize()}px`,
-                  width: '100%',
-                  position: 'relative',
-                }}
-              >
-                {virtualizer.getVirtualItems().map((virtualItem) => {
-                  const pageNumber = pages[virtualItem.index];
-                  return (
-                    <div
-                      key={virtualItem.key}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: `${virtualItem.size}px`,
-                        transform: `translateY(${virtualItem.start}px)`,
-                      }}
-                      className="flex justify-center mb-8 relative"
-                    >
-                      <PDFPage
-                        pageNumber={pageNumber}
-                        scale={scale}
-                        isLoaded={loadedPages.has(pageNumber)}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </Document>
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const pageNumber = pages[virtualItem.index];
+              return (
+                <div
+                  key={virtualItem.key}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                  className="flex justify-center mb-8 relative"
+                >
+                  <PDFPage
+                    pageNumber={pageNumber}
+                    scale={scale}
+                    isLoaded={loadedPages.has(pageNumber)}
+                  />
+                </div>
+              );
+            })}
           </div>
-          {numPages > 0 && (
-            <PDFPageNavigator
-              currentPage={currentPage}
-              totalPages={isSplit ? splitPdfPages.length : numPages}
-              onJumpToPage={handleJumpToPage}
-            />
-          )}
-        </>
+        </Document>
+      </div>
+      {numPages > 0 && (
+        <PDFPageNavigator
+          currentPage={currentPage}
+          totalPages={isSplit ? splitPdfPages.length : numPages}
+          onJumpToPage={handleJumpToPage}
+        />
       )}
       
       {isNotesOpen && (

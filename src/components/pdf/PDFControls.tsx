@@ -90,7 +90,7 @@ export const PDFControls = ({ isLoading, numPages, onSplit, onDownload, onGenera
           disabled={isLoading || !isSplit}
         >
           <FileText className="mr-2" />
-          Notes
+          Extract Text
         </Button>
       )}
     </div>
