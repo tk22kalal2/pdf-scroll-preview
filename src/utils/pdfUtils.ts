@@ -141,14 +141,15 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
         messages: [
           {
             role: "system",
-            content: `You are an expert note creator. Create complete HTML-formatted notes from PDF text with proper three-level list structures.
+            content: `You are an expert note creator. Create detailed and complete HTML-formatted notes from PDF text in simple language, as if explaining to a 7th-grade student.
 
 RULES:
 1. Use ONLY HTML formatting (no Markdown)
 2. Include ALL information from the PDF
 3. Use simple language (7th grade level)
-4. Wrap key terms and main concepts in <strong> tags
-5. Use proper HTML structure with three-level lists
+4. Break down complex concepts into easy-to-understand points
+5. Wrap key terms and main concepts in <strong> tags
+6. Use proper HTML structure with three-level lists
 
 FORMATTING:
 - Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Title</span></span></h1>
@@ -176,7 +177,7 @@ Add proper spacing between sections and ensure all content is preserved.`
           },
           {
             role: "user",
-            content: `Create detailed HTML notes with proper three-level list formatting from this PDF text: ${ocrText}`
+            content: `Create detailed and complete HTML-formatted notes from PDF text in simple language, as if explaining to a 7th-grade student: ${ocrText}`
           }
         ],
         temperature: 0.3,
