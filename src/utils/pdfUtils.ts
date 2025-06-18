@@ -1,6 +1,8 @@
-
 import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
+import { analyzeDocumentStructure } from './documentStructure';
+import { createStructuredChunks } from './contentChunking';
+import { processChunksHierarchically, ProcessingProgress } from './hierarchicalProcessor';
 
 export interface OcrResult {
   text: string;
@@ -119,92 +121,63 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
 };
 
 /**
- * Converts OCR text to notes using Groq API
+ * Converts OCR text to notes using hierarchical processing for large documents
  * @param ocrText The text from OCR
  * @returns The formatted notes
  */
 export const generateNotesFromText = async (ocrText: string): Promise<NotesResult> => {
   try {
-    const GROQ_API_KEY = "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";
-    const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+    // Phase 1: Analyze document structure
+    toast.loading("Analyzing document structure...", { id: "notes-progress" });
+    const documentStructure = analyzeDocumentStructure(ocrText);
     
-    console.log("Using Groq API to generate notes");
-    
-    const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert note creator. Create detailed and complete HTML-formatted notes from PDF text in simple language, as if explaining to a 7th-grade student.
-
-RULES:
-1. Use ONLY HTML formatting (no Markdown)
-2. Include ALL information from the PDF
-3. Use simple language (7th grade level)
-4. Break down complex concepts into easy-to-understand points
-5. Wrap key terms and main concepts in <strong> tags
-6. Use proper HTML structure with three-level lists
-
-FORMATTING:
-- Main headings: <h1><span style="text-decoration: underline;"><span style="color: rgb(71, 0, 0); text-decoration: underline;">Title</span></span></h1>
-- Section headings: <h2><span style="text-decoration: underline;"><span style="color: rgb(26, 1, 157); text-decoration: underline;">Section</span></span></h2>
-- Sub-headings: <h3><span style="text-decoration: underline;"><span style="color: rgb(52, 73, 94); text-decoration: underline;">Sub-section</span></span></h3>
-- Paragraphs: <p>Content with <strong>key terms</strong></p>
-
-THREE-LEVEL BULLET LISTS:
-- Level 1: <ul><li>Main point with <strong>key terms</strong></li></ul>
-- Level 2: <ul><li>Main point<ul><li>Sub-point with details</li></ul></li></ul>
-- Level 3: <ul><li>Main point<ul><li>Sub-point<ul><li>Detailed sub-point</li></ul></li></ul></li></ul>
-
-THREE-LEVEL NUMBERED LISTS:
-- Level 1: <ol><li>First main item with <strong>key terms</strong></li></ol>
-- Level 2: <ol><li>Main item<ol><li>Sub-item with details</li></ol></li></ol>
-- Level 3: <ol><li>Main item<ol><li>Sub-item<ol><li>Detailed sub-item</li></ol></li></ol></li></ol>
-
-WHEN TO USE LISTS:
-- Use bullet lists for related items, features, symptoms, characteristics
-- Use numbered lists for procedures, steps, chronological events, rankings
-- Create three levels when content has main points, sub-points, and details
-- Always highlight important terms within list items using <strong> tags
-
-Add proper spacing between sections and ensure all content is preserved.`
-          },
-          {
-            role: "user",
-            content: `Create detailed and complete HTML-formatted notes from PDF text in simple language, as if explaining to a 7th-grade student: ${ocrText}`
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 4000,
-      })
+    console.log("Document structure analyzed:", {
+      headings: documentStructure.headings.length,
+      sections: documentStructure.sections.length,
+      totalLength: documentStructure.totalLength
     });
     
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("Groq API error response:", errorData);
-      throw new Error(`Groq API error: ${response.status}`);
-    }
+    // Phase 2: Create structured chunks
+    toast.loading("Creating intelligent content chunks...", { id: "notes-progress" });
+    const chunkingResult = createStructuredChunks(ocrText, documentStructure);
     
-    const data = await response.json();
-    const notes = data.choices[0].message.content;
+    console.log("Chunking complete:", {
+      totalChunks: chunkingResult.totalChunks,
+      chunks: chunkingResult.chunks.map(c => ({ id: c.id, tokenCount: c.tokenCount }))
+    });
     
-    if (!notes || notes.trim().length === 0) {
-      throw new Error("Empty response from Groq API");
+    // Phase 3: Process chunks hierarchically
+    let currentProgress = { currentChunk: 0, totalChunks: chunkingResult.totalChunks };
+    
+    const onProgress = (progress: ProcessingProgress) => {
+      currentProgress = progress;
+      let message = progress.message;
+      
+      if (progress.phase === 'processing') {
+        message = `Processing section ${progress.currentChunk} of ${progress.totalChunks}...`;
+      } else if (progress.phase === 'merging') {
+        message = "Merging all sections into complete notes...";
+      }
+      
+      toast.loading(message, { id: "notes-progress" });
+    };
+    
+    const finalNotes = await processChunksHierarchically(chunkingResult, onProgress);
+    
+    toast.dismiss("notes-progress");
+    
+    if (!finalNotes || finalNotes.trim().length === 0) {
+      throw new Error("Empty response from hierarchical processing");
     }
     
     // Clean and validate HTML formatting
-    const cleanedNotes = cleanHtmlFormatting(notes);
+    const cleanedNotes = cleanHtmlFormatting(finalNotes);
     
     return { notes: cleanedNotes };
     
   } catch (error) {
-    console.error("Groq API Error:", error);
+    console.error("Hierarchical processing error:", error);
+    toast.dismiss("notes-progress");
     toast.error("Failed to generate notes. Using fallback formatting.", {
       duration: 3000,
       position: "top-right"
