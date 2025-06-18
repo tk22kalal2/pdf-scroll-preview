@@ -66,14 +66,20 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
     let fullText = '';
     let imageBasedPagesCount = 0;
     
+    console.log(`Starting OCR for ${pageNumbers.length} pages`);
+    
     // Process each requested page
     for (const pageNum of pageNumbers) {
       if (pageNum > pdf.numPages || pageNum < 1) continue;
+      
+      console.log(`Processing page ${pageNum}...`);
       
       // Try to extract text using PDF.js first (works for text-based PDFs)
       const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
       let pageText = textContent.items.map((item: any) => item.str).join(' ');
+      
+      console.log(`Page ${pageNum} extracted text length: ${pageText.length}`);
       
       // If not enough text was extracted, fallback to Tesseract OCR
       if (pageText.trim().length < 50) {
@@ -93,7 +99,7 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
               logger: (m) => {
                 // Optional: Log progress to console
                 if (m.status === 'recognizing text') {
-                  console.log(`Recognizing text: ${Math.floor(m.progress * 100)}%`);
+                  console.log(`OCR Progress: ${Math.floor(m.progress * 100)}%`);
                 }
               }
             }
@@ -102,6 +108,8 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
           // Add the recognized text
           pageText += ' ' + result.data.text;
         }
+        
+        console.log(`Page ${pageNum} OCR completed, total text length: ${pageText.length}`);
       }
       
       fullText += `Page ${pageNum}:\n${pageText.trim()}\n\n`;
@@ -111,7 +119,7 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
       toast.success(`Advanced OCR completed on ${imageBasedPagesCount} image-based pages`);
     }
     
-    console.log("OCR Text:", fullText);
+    console.log(`Total OCR completed: ${fullText.length} characters from ${pageNumbers.length} pages`);
     return { text: fullText || "No text found in the PDF." };
   } catch (error) {
     console.error("OCR Error:", error);
@@ -127,24 +135,42 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
  */
 export const generateNotesFromText = async (ocrText: string): Promise<NotesResult> => {
   try {
+    console.log(`Starting notes generation for ${ocrText.length} characters`);
+    
     // Phase 1: Analyze document structure
     toast.loading("Analyzing document structure...", { id: "notes-progress" });
     const documentStructure = analyzeDocumentStructure(ocrText);
     
-    console.log("Document structure analyzed:", {
+    console.log("Document structure analysis complete:", {
       headings: documentStructure.headings.length,
       sections: documentStructure.sections.length,
-      totalLength: documentStructure.totalLength
+      totalLength: documentStructure.totalLength,
+      pageBreaks: documentStructure.pageBreaks.length
+    });
+    
+    // Log found headings for debugging
+    documentStructure.headings.forEach((heading, index) => {
+      console.log(`Heading ${index + 1}: Level ${heading.level} - "${heading.text}"`);
     });
     
     // Phase 2: Create structured chunks
     toast.loading("Creating intelligent content chunks...", { id: "notes-progress" });
     const chunkingResult = createStructuredChunks(ocrText, documentStructure);
     
-    console.log("Chunking complete:", {
+    console.log("Chunking analysis complete:", {
       totalChunks: chunkingResult.totalChunks,
-      chunks: chunkingResult.chunks.map(c => ({ id: c.id, tokenCount: c.tokenCount }))
+      totalContentLength: chunkingResult.totalContentLength,
+      chunks: chunkingResult.chunks.map(c => ({ 
+        id: c.id, 
+        tokenCount: c.tokenCount, 
+        contentLength: c.content.length,
+        pageNumbers: c.pageNumbers 
+      }))
     });
+    
+    // Verify chunking didn't lose content
+    const totalChunkContent = chunkingResult.chunks.reduce((sum, chunk) => sum + chunk.content.length, 0);
+    console.log(`Content preservation check: ${totalChunkContent}/${ocrText.length} characters (${Math.round(totalChunkContent/ocrText.length*100)}%)`);
     
     // Phase 3: Process chunks hierarchically
     let currentProgress = { currentChunk: 0, totalChunks: chunkingResult.totalChunks };
@@ -166,6 +192,8 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     
     toast.dismiss("notes-progress");
     
+    console.log(`Final notes generated: ${finalNotes.length} characters`);
+    
     if (!finalNotes || finalNotes.trim().length === 0) {
       throw new Error("Empty response from hierarchical processing");
     }
@@ -173,18 +201,24 @@ export const generateNotesFromText = async (ocrText: string): Promise<NotesResul
     // Clean and validate HTML formatting
     const cleanedNotes = cleanHtmlFormatting(finalNotes);
     
+    console.log(`Cleaned notes: ${cleanedNotes.length} characters`);
+    
     return { notes: cleanedNotes };
     
   } catch (error) {
     console.error("Hierarchical processing error:", error);
     toast.dismiss("notes-progress");
-    toast.error("Failed to generate notes. Using fallback formatting.", {
+    toast.error("Failed to generate notes. Using enhanced fallback formatting.", {
       duration: 3000,
       position: "top-right"
     });
     
     // Enhanced fallback formatting
-    return { notes: createFallbackHtmlNotes(ocrText) };
+    console.log("Creating fallback notes...");
+    const fallbackNotes = createFallbackHtmlNotes(ocrText);
+    console.log(`Fallback notes created: ${fallbackNotes.length} characters`);
+    
+    return { notes: fallbackNotes };
   }
 };
 
