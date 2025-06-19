@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
 import { processOCRPageWise } from './pageWiseProcessor';
@@ -104,7 +103,7 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
           
           const imageDataUrl = canvas.toDataURL('image/png', 1.0); // Maximum quality
           
-          // Enhanced Tesseract processing
+          // Enhanced Tesseract processing with correct options format
           const result = await Tesseract.recognize(
             imageDataUrl,
             'eng',
@@ -113,10 +112,7 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
                 if (m.status === 'recognizing text') {
                   console.log(`PAGE ${pageNum} OCR: ${Math.floor(m.progress * 100)}%`);
                 }
-              },
-              tessedit_pageseg_mode: Tesseract.PSM.AUTO,
-              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
-              preserve_interword_spaces: '1',
+              }
             }
           );
           

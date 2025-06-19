@@ -92,7 +92,7 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
         method = 'tesseract-ocr';
         const images = await extractImagesFromPage(pdf, pageNum);
         
-        // Enhanced Tesseract processing with better settings
+        // Enhanced Tesseract processing with correct options format
         for (const imageUrl of images) {
           const result = await Tesseract.recognize(
             imageUrl,
@@ -102,10 +102,7 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
                 if (m.status === 'recognizing text') {
                   console.log(`PAGE ${pageNum} OCR Progress: ${Math.floor(m.progress * 100)}%`);
                 }
-              },
-              tessedit_pageseg_mode: Tesseract.PSM.AUTO, // Automatic page segmentation
-              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY, // Use LSTM OCR engine
-              preserve_interword_spaces: '1',
+              }
             }
           );
           
