@@ -1,7 +1,7 @@
 
 import { toast } from "sonner";
 import * as Tesseract from 'tesseract.js';
-import { processOCRInChunks } from './chunkProcessor';
+import { processOCRPageWise } from './pageWiseProcessor';
 
 export interface OcrResult {
   text: string;
@@ -65,53 +65,93 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
     let fullText = '';
     let imageBasedPagesCount = 0;
     
-    // Process each requested page
+    // Process each requested page with enhanced accuracy
     for (const pageNum of pageNumbers) {
       if (pageNum > pdf.numPages || pageNum < 1) continue;
+      
+      console.log(`Processing PAGE ${pageNum} with enhanced OCR...`);
+      toast.loading(`Processing PAGE ${pageNum} OCR...`, {
+        position: "top-right",
+        id: `ocr-page-${pageNum}`
+      });
       
       // Try to extract text using PDF.js first (works for text-based PDFs)
       const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
       let pageText = textContent.items.map((item: any) => item.str).join(' ');
       
-      // If not enough text was extracted, fallback to Tesseract OCR
-      if (pageText.trim().length < 50) {
-        toast.loading(`Page ${pageNum} appears to be image-based, using advanced OCR...`);
+      // Enhanced threshold - if less than 100 characters, use OCR
+      if (pageText.trim().length < 100) {
+        console.log(`PAGE ${pageNum}: Using Tesseract OCR for better accuracy`);
+        toast.loading(`PAGE ${pageNum}: Using advanced OCR...`, {
+          position: "top-right",
+          id: `ocr-page-${pageNum}`
+        });
         imageBasedPagesCount++;
         
-        // Extract images from the page
-        const images = await extractImagesFromPage(pdf, pageNum);
+        // Extract images from the page with higher quality
+        const viewport = page.getViewport({ scale: 3.0 }); // Higher scale for better accuracy
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
         
-        // Process each image with Tesseract
-        for (const imageUrl of images) {
-          // Use Tesseract.js to perform OCR on the image
+        if (ctx) {
+          await page.render({
+            canvasContext: ctx,
+            viewport: viewport
+          }).promise;
+          
+          const imageDataUrl = canvas.toDataURL('image/png', 1.0); // Maximum quality
+          
+          // Enhanced Tesseract processing
           const result = await Tesseract.recognize(
-            imageUrl,
+            imageDataUrl,
             'eng',
             {
               logger: (m) => {
-                // Optional: Log progress to console
                 if (m.status === 'recognizing text') {
-                  console.log(`Recognizing text: ${Math.floor(m.progress * 100)}%`);
+                  console.log(`PAGE ${pageNum} OCR: ${Math.floor(m.progress * 100)}%`);
                 }
-              }
+              },
+              tessedit_pageseg_mode: Tesseract.PSM.AUTO,
+              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+              preserve_interword_spaces: '1',
             }
           );
           
-          // Add the recognized text
-          pageText += ' ' + result.data.text;
+          pageText = result.data.text;
+          console.log(`PAGE ${pageNum} OCR Confidence: ${result.data.confidence}%`);
         }
       }
       
-      fullText += `Page ${pageNum}:\n${pageText.trim()}\n\n`;
+      // Clean and enhance the page text
+      pageText = cleanAndEnhanceText(pageText);
+      
+      // Add clear page markers
+      const pageMarker = `\n\n=== PAGE ${pageNum} OCR START ===\n`;
+      const pageEndMarker = `\n=== PAGE ${pageNum} OCR END ===\n\n`;
+      fullText += pageMarker + pageText + pageEndMarker;
+      
+      toast.dismiss(`ocr-page-${pageNum}`);
+      toast.success(`PAGE ${pageNum} OCR completed`, {
+        position: "top-right",
+        duration: 1500
+      });
+      
+      console.log(`PAGE ${pageNum} OCR completed, text length: ${pageText.length}`);
     }
     
     if (imageBasedPagesCount > 0) {
-      toast.success(`Advanced OCR completed on ${imageBasedPagesCount} image-based pages`);
+      toast.success(`Enhanced OCR completed on ${imageBasedPagesCount} image-based pages`);
     }
     
-    console.log("OCR Text Length:", fullText.length);
-    console.log("OCR Text Preview:", fullText.substring(0, 500) + "...");
+    console.log("Complete OCR Results:", {
+      totalPages: pageNumbers.length,
+      totalTextLength: fullText.length,
+      imageBasedPages: imageBasedPagesCount
+    });
+    
     return { text: fullText || "No text found in the PDF." };
   } catch (error) {
     console.error("OCR Error:", error);
@@ -121,7 +161,20 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
 };
 
 /**
- * Converts OCR text to notes using chunked processing for large documents
+ * Cleans and enhances extracted text for better processing
+ */
+function cleanAndEnhanceText(text: string): string {
+  return text
+    .replace(/\s+/g, ' ') // Multiple spaces to single space
+    .replace(/\n\s*\n/g, '\n\n') // Multiple newlines to double newline
+    .replace(/([.!?])\s*([A-Z])/g, '$1\n\n$2') // Add paragraph breaks
+    .replace(/([a-z])\s*([A-Z][a-z]+:)/g, '$1\n\n$2') // Breaks before headings
+    .replace(/(\d+\.)\s*([A-Z])/g, '$1 $2') // Clean numbered items
+    .trim();
+}
+
+/**
+ * Converts OCR text to notes using page-wise processing
  * @param ocrText The text from OCR
  * @param onProgress Optional progress callback
  * @returns The formatted notes
@@ -131,20 +184,20 @@ export const generateNotesFromText = async (
   onProgress?: (current: number, total: number, status: string) => void
 ): Promise<NotesResult> => {
   try {
-    console.log("Starting chunked note generation for text length:", ocrText.length);
+    console.log("Starting page-wise note generation for text length:", ocrText.length);
     
-    // Use chunked processing for better handling of large documents
-    const notes = await processOCRInChunks(ocrText, onProgress);
+    // Use page-wise processing for complete accuracy
+    const notes = await processOCRPageWise(ocrText, onProgress);
     
     if (!notes || notes.trim().length === 0) {
-      throw new Error("Empty response from chunked processing");
+      throw new Error("Empty response from page-wise processing");
     }
     
     console.log("Generated notes length:", notes.length);
     return { notes };
     
   } catch (error) {
-    console.error("Chunked processing error:", error);
+    console.error("Page-wise processing error:", error);
     toast.error("Failed to generate notes. Using fallback formatting.", {
       duration: 3000,
       position: "top-right"

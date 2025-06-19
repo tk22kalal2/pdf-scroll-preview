@@ -4,17 +4,22 @@ import * as Tesseract from 'tesseract.js';
 
 export interface OcrResult {
   text: string;
+  pageResults: PageOcrResult[];
+}
+
+export interface PageOcrResult {
+  pageNumber: number;
+  text: string;
+  method: 'pdf-text' | 'tesseract-ocr';
+  confidence?: number;
 }
 
 /**
- * Extracts images from PDF pages
- * @param pdf The loaded PDF document
- * @param pageNumber The page number to extract images from
- * @returns Array of image data URLs
+ * Extracts images from PDF pages with higher quality
  */
 const extractImagesFromPage = async (pdf: any, pageNumber: number): Promise<string[]> => {
   const page = await pdf.getPage(pageNumber);
-  const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better image quality
+  const viewport = page.getViewport({ scale: 3.0 }); // Increased scale for better OCR accuracy
   
   const images: string[] = [];
   
@@ -26,92 +31,138 @@ const extractImagesFromPage = async (pdf: any, pageNumber: number): Promise<stri
   
   if (!ctx) return images;
   
-  // Render the page to the canvas
+  // Render the page to the canvas with high quality
   await page.render({
     canvasContext: ctx,
-    viewport: viewport
+    viewport: viewport,
+    renderInteractiveForms: false
   }).promise;
   
   // Get the image data URL for the full page
-  const imageDataUrl = canvas.toDataURL('image/png');
+  const imageDataUrl = canvas.toDataURL('image/png', 1.0); // Maximum quality
   images.push(imageDataUrl);
   
   return images;
 }
 
 /**
- * Performs OCR on PDF pages using either PDF.js text extraction or Tesseract for image-based PDFs
- * @param file The PDF file
- * @param pageNumbers Array of page numbers to process
- * @returns The OCR result
+ * Performs enhanced OCR on PDF pages with improved accuracy
  */
 export const performOCR = async (file: File, pageNumbers: number[]): Promise<OcrResult> => {
   try {
-    // Import PDF.js
     const pdfjs = await import('pdfjs-dist');
     const pdfjsLib = pdfjs;
     
     pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
     
-    // Load the PDF document
     const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
     
     let fullText = '';
-    let imageBasedPagesCount = 0;
+    const pageResults: PageOcrResult[] = [];
     
-    // Process each requested page
+    // Process each page individually
     for (const pageNum of pageNumbers) {
       if (pageNum > pdf.numPages || pageNum < 1) continue;
       
-      // Try to extract text using PDF.js first (works for text-based PDFs)
+      console.log(`Processing PAGE ${pageNum} OCR...`);
+      toast.loading(`Processing PAGE ${pageNum} OCR...`, {
+        position: "top-right",
+        id: `ocr-page-${pageNum}`
+      });
+      
       const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
-      let pageText = textContent.items.map((item: any) => item.str).join(' ');
+      let pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ')
+        .trim();
       
-      // If not enough text was extracted, fallback to Tesseract OCR
-      if (pageText.trim().length < 50) {
-        toast.loading(`Page ${pageNum} appears to be image-based, using advanced OCR...`, {
+      let method: 'pdf-text' | 'tesseract-ocr' = 'pdf-text';
+      let confidence: number | undefined;
+      
+      // Enhanced threshold - if less than 100 characters, use OCR
+      if (pageText.length < 100) {
+        console.log(`PAGE ${pageNum}: Text extraction insufficient (${pageText.length} chars), using Tesseract OCR`);
+        
+        toast.loading(`PAGE ${pageNum}: Using advanced OCR for better accuracy...`, {
           position: "top-right",
           id: `ocr-page-${pageNum}`
         });
-        imageBasedPagesCount++;
         
-        // Extract images from the page
+        method = 'tesseract-ocr';
         const images = await extractImagesFromPage(pdf, pageNum);
         
-        // Process each image with Tesseract
+        // Enhanced Tesseract processing with better settings
         for (const imageUrl of images) {
-          // Use Tesseract.js to perform OCR on the image
           const result = await Tesseract.recognize(
             imageUrl,
             'eng',
             {
               logger: (m) => {
-                // Optional: Log progress to console
                 if (m.status === 'recognizing text') {
-                  console.log(`Recognizing text: ${Math.floor(m.progress * 100)}%`);
+                  console.log(`PAGE ${pageNum} OCR Progress: ${Math.floor(m.progress * 100)}%`);
                 }
-              }
+              },
+              tessedit_pageseg_mode: Tesseract.PSM.AUTO, // Automatic page segmentation
+              tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY, // Use LSTM OCR engine
+              preserve_interword_spaces: '1',
             }
           );
           
-          // Add the recognized text
-          pageText += ' ' + result.data.text;
+          confidence = result.data.confidence;
+          pageText = result.data.text.trim();
+          
+          console.log(`PAGE ${pageNum} OCR Confidence: ${confidence}%`);
         }
-        toast.dismiss(`ocr-page-${pageNum}`);
       }
       
-      fullText += `Page ${pageNum}:\n${pageText.trim()}\n\n`;
+      // Clean and format the page text
+      pageText = cleanPageText(pageText);
+      
+      // Add clear page marker
+      const pageMarker = `\n\n=== PAGE ${pageNum} OCR START ===\n`;
+      const pageEndMarker = `\n=== PAGE ${pageNum} OCR END ===\n\n`;
+      const formattedPageText = pageMarker + pageText + pageEndMarker;
+      
+      fullText += formattedPageText;
+      
+      pageResults.push({
+        pageNumber: pageNum,
+        text: pageText,
+        method,
+        confidence
+      });
+      
+      toast.dismiss(`ocr-page-${pageNum}`);
+      toast.success(`PAGE ${pageNum} OCR completed (${method})`, {
+        position: "top-right",
+        duration: 2000
+      });
+      
+      console.log(`PAGE ${pageNum} OCR Complete:`, {
+        method,
+        textLength: pageText.length,
+        confidence: confidence || 'N/A'
+      });
     }
     
-    if (imageBasedPagesCount > 0) {
-      toast.success(`Advanced OCR completed on ${imageBasedPagesCount} image-based pages`, {
+    const imageBasedCount = pageResults.filter(p => p.method === 'tesseract-ocr').length;
+    if (imageBasedCount > 0) {
+      toast.success(`Enhanced OCR completed on ${imageBasedCount} image-based pages`, {
         position: "top-right"
       });
     }
     
-    console.log("OCR Text:", fullText);
-    return { text: fullText || "No text found in the PDF." };
+    console.log("Complete OCR Results:", {
+      totalPages: pageResults.length,
+      totalTextLength: fullText.length,
+      imageBasedPages: imageBasedCount
+    });
+    
+    return { 
+      text: fullText || "No text found in the PDF.",
+      pageResults 
+    };
   } catch (error) {
     console.error("OCR Error:", error);
     toast.error("Failed to extract text from PDF", {
@@ -120,3 +171,15 @@ export const performOCR = async (file: File, pageNumbers: number[]): Promise<Ocr
     throw error;
   }
 };
+
+/**
+ * Cleans and enhances extracted page text
+ */
+function cleanPageText(text: string): string {
+  return text
+    .replace(/\s+/g, ' ') // Multiple spaces to single space
+    .replace(/\n\s*\n/g, '\n\n') // Multiple newlines to double newline
+    .replace(/([.!?])\s*([A-Z])/g, '$1\n\n$2') // Add paragraph breaks after sentences
+    .replace(/([a-z])\s*([A-Z][a-z]+:)/g, '$1\n\n$2') // Add breaks before potential headings
+    .trim();
+}
