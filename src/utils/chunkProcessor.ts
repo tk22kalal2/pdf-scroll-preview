@@ -295,7 +295,7 @@ export const processOCRInChunks = async (
  * Processes a single chunk with Groq API
  */
 const processSingleChunk = async (chunk: string, state: ChunkProcessingState): Promise<string> => {
-  const GROQ_API_KEY = "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";
+  const GROQ_API_KEY = "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";
   const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
   
   const continuationPrompt = createContinuationPrompt(state);
@@ -317,7 +317,7 @@ ${continuationPrompt}
 
 RULES:
 1. Use ONLY HTML formatting (no Markdown)
-2. Include ALL information from the PDF chunk
+2. Include ALL information from the PDF chunk and dont omitt anything
 3. Use simple language (7th grade level)
 4. Break down complex concepts into easy-to-understand points
 5. Wrap key terms and main concepts in <strong> tags
