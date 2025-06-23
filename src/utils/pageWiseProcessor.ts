@@ -318,7 +318,7 @@ const processSinglePage = async (
   pageNumber: number,
   state: PageProcessingState
 ): Promise<string> => {
-  const GROQ_API_KEY = "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";
+  const GROQ_API_KEY = "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";
   const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
   
   const continuationContext = createPageContinuationContext(state);
