@@ -53,7 +53,7 @@ export const ChatBot = ({ ocrText, onClose }: ChatBotProps) => {
       });
       
       // Get the Groq API key from the existing code
-      const GROQ_API_KEY = "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";
+      const GROQ_API_KEY = "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";
       const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
       
       // Prepare the request to Groq API with improved prompt
